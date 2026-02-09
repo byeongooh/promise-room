@@ -14,7 +14,6 @@ interface PromiseDetailProps {
 }
 
 export default function PromiseDetail({ promise }: PromiseDetailProps) {
-  // Format date to Korean format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString("ko-KR", {
@@ -75,7 +74,8 @@ export default function PromiseDetail({ promise }: PromiseDetailProps) {
       </Card>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <MapPlaceholder />
+        {/* ✅ location 전달 */}
+        <MapPlaceholder location={promise.location} />
         <AlarmPlaceholder />
       </div>
     </div>

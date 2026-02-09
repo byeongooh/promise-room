@@ -73,6 +73,10 @@ interface PromiseData {
   participants: string[];
   password: string;
   createdAt?: Timestamp;
+  locationLat?: number;
+  locationLng?: number;
+  locationPlaceId?: string | null;
+
 }
 
 // ================= Fallback =================
@@ -122,6 +126,81 @@ export default function PromisePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [alarm10Min, setAlarm10Min] = useState(false);
   const [alarm1Hour, setAlarm1Hour] = useState(false);
+
+  // ================= 📍 카카오 지도 표시 =================
+useEffect(() => {
+  if (!hasAccess || !promiseData?.location) return;
+
+  const kakao = (window as any).kakao;
+  if (!kakao?.maps) {
+    console.warn("MAP: kakao.maps 없음 (SDK 로드 확인 필요)");
+    return;
+  }
+
+  kakao.maps.load(() => {
+    const container = document.getElementById("kakao-map");
+    if (!container) {
+      console.warn("MAP: #kakao-map div를 못 찾음 (id 확인 필요)");
+      return;
+    }
+
+    // 중복 렌더 방지
+    container.innerHTML = "";
+
+    const map = new kakao.maps.Map(container, {
+      center: new kakao.maps.LatLng(37.5665, 126.978),
+      level: 3,
+    });
+
+    // ✅ 좌표가 있으면: keywordSearch 하지 말고 바로 좌표로 찍기
+    const lat = (promiseData as any).locationLat;
+    const lng = (promiseData as any).locationLng;
+
+    if (typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+      const pos = new kakao.maps.LatLng(lat, lng);
+
+      const marker = new kakao.maps.Marker({ map, position: pos });
+
+      const infowindow = new kakao.maps.InfoWindow({
+        content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
+      });
+      infowindow.open(map, marker);
+
+      map.setCenter(pos);
+      map.setLevel(3);
+      return; // ✅ 여기서 끝 (좌표 있으면 검색 안 함)
+    }
+
+    // ✅ services 라이브러리 확인 (좌표 없을 때만 검색)
+    if (!kakao.maps.services) {
+      console.warn("MAP: kakao.maps.services 없음 (libraries=services 확인)");
+      return;
+    }
+
+    const places = new kakao.maps.services.Places();
+    places.keywordSearch(promiseData.location, (result: any, status: any) => {
+      if (status !== kakao.maps.services.Status.OK || !result?.length) {
+        console.warn("MAP: 장소 검색 실패:", promiseData.location, status);
+        return;
+      }
+
+      const first = result[0];
+      const pos = new kakao.maps.LatLng(Number(first.y), Number(first.x));
+
+      const marker = new kakao.maps.Marker({ map, position: pos });
+
+      const infowindow = new kakao.maps.InfoWindow({
+        content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
+      });
+      infowindow.open(map, marker);
+
+      map.setCenter(pos);
+      map.setLevel(3);
+    });
+  });
+}, [hasAccess, promiseData?.location, (promiseData as any)?.locationLat, (promiseData as any)?.locationLng]);
+
+
 
   // ========== Firestore에서 문서 로드 ==========
   const fetchPromiseData = async (id: string) => {
@@ -526,19 +605,15 @@ export default function PromisePage() {
                 <CardDescription>약속 장소 지도</CardDescription>
               </CardHeader>
               <CardContent>
-                <img
-                  src={`https://placehold.co/600x300/e2e8f0/64748b?text=Map+of+${encodeURIComponent(
-                    promiseData.location || 'Unknown'
-                  )}`}
-                  alt={`Map: ${promiseData.location || 'Unknown'}`}
-                  className="w-full h-48 object-contain rounded-md border bg-muted"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      'https://placehold.co/600x300/fecaca/991b1b?text=Map+Error';
-                    (e.target as HTMLImageElement).alt = 'Map Error';
-                  }}
-                />
-                <p className="text-xs text-muted-foreground mt-2">지도 이미지 예시</p>
+                <div
+  id="kakao-map"
+    className="w-full h-48 rounded-md border bg-muted"
+    style={{ minHeight: "200px" }}
+  />
+  <p className="text-xs text-muted-foreground mt-2">
+    장소: {promiseData.location || "미정"}
+  </p>
+
               </CardContent>
             </Card>
 
