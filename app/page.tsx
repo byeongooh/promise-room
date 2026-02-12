@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
-import { Badge } from '../components/ui/badge';
-import { User as UserIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { db, auth } from '../lib/firebase';
+import { Badge } from "../components/ui/badge";
+import { User as UserIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+import { db } from "../lib/firebase";
+
 import {
   collection,
   onSnapshot,
@@ -15,17 +17,10 @@ import {
   doc,
   getDoc,
   deleteDoc,
-} from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+} from "firebase/firestore";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../components/ui/card';
-import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import {
   CalendarDays,
   Clock,
@@ -35,19 +30,19 @@ import {
   Trash2,
   Loader2,
   ExternalLink,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   DialogClose,
-} from '../components/ui/dialog';
+} from "../components/ui/dialog";
 
-import { useUser } from '@/lib/user-context';
-import FallbackUserLogin from '@/components/fallback/FallbackUserLogin';
+// ✅ NextAuth (카카오 로그인)
+import { useSession, signIn, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 type PromiseDoc = {
   id: string;
@@ -63,11 +58,14 @@ type PromiseDoc = {
 };
 
 export default function HomePage() {
-  // 1) 모든 훅 선언은 항상 고정된 순서로
-  const { currentUser, logout } = useUser();
-// 만든 사람 표시용 (없으면 '알 수 없음')
-const displayCreator = (src: { creator?: string } | null | undefined) =>
-  (src?.creator && src.creator.trim() !== '') ? src.creator : '알 수 없음';
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // ✅ 카카오 로그인 이름만 사용 (여기서 123 같은 폴백 사용자 완전 제거)
+  const kakaoName = useMemo(() => {
+    const n = session?.user?.name?.trim();
+    return n && n.length > 0 ? n : null;
+  }, [session?.user?.name]);
 
   const [promises, setPromises] = useState<PromiseDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,36 +76,50 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // 2) Firestore 구독은 로그인 상태에서만 시작
+  // ✅ 로그인 안 되어있으면 /login으로 이동
   useEffect(() => {
-    // 로그인 안됐으면 목록 초기화하고 끝
-    if (!currentUser) {
+    if (status === "loading") return;
+    if (!session) router.replace("/login");
+  }, [status, session, router]);
+
+  // ✅ Firestore 구독 (로그인 완료 후에만)
+  useEffect(() => {
+    if (status !== "authenticated") {
       setPromises([]);
-      setLoading(false);
+      setLoading(status === "loading");
       return;
     }
 
-    const colRef = collection(db, 'promises');
-    const q = query(colRef, orderBy('createdAt', 'desc'));
+    const colRef = collection(db, "promises");
+    const q = query(colRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: PromiseDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const rows: PromiseDoc[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
         setPromises(rows);
         setLoading(false);
       },
       async () => {
-        // 스냅샷 실패 시 1회 폴백
+        // fallback
         const snap2 = await getDocs(colRef);
-        const rows2: PromiseDoc[] = snap2.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const rows2: PromiseDoc[] = snap2.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
         setPromises(rows2);
         setLoading(false);
       }
     );
 
     return () => unsub();
-  }, [currentUser]);
+  }, [status]);
+
+  const displayCreator = (creator?: string) =>
+    creator && creator.trim() !== "" ? creator : "알 수 없음";
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -115,9 +127,9 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
     setDetail(null);
     setDetailLoading(true);
     try {
-      const ref = doc(db, 'promises', id);
+      const ref = doc(db, "promises", id);
       const snap = await getDoc(ref);
-      setDetail(snap.exists() ? ({ id: snap.id, ...(snap.data() as any) }) : null);
+      setDetail(snap.exists() ? { id: snap.id, ...(snap.data() as any) } : null);
     } catch (e) {
       console.error(e);
       setDetail(null);
@@ -134,60 +146,77 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
   };
 
   const fmtDate = (date?: string | Timestamp) => {
-    if (!date) return '날짜 정보 없음';
+    if (!date) return "날짜 정보 없음";
     try {
       if (date instanceof Timestamp) {
-        return date.toDate().toLocaleDateString('ko-KR', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          weekday: 'long',
+        return date.toDate().toLocaleDateString("ko-KR", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          weekday: "long",
         });
       }
-      const dt = new Date(date + 'T00:00:00Z');
-      return dt.toLocaleDateString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long',
+      const dt = new Date(date + "T00:00:00Z");
+      return dt.toLocaleDateString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "long",
       });
     } catch {
-      return '날짜 변환 오류';
+      return "날짜 변환 오류";
     }
   };
 
- const canDelete = useMemo(() => {
-  if (!detail) return false;
-  if (!currentUser) return false;
-  return detail.creator === currentUser;
-}, [detail, currentUser]);
+  // ✅ 삭제 권한: 만든 사람(creator) === 카카오 이름
+  const canDelete = useMemo(() => {
+    if (!detail) return false;
+    if (!kakaoName) return false;
+    return detail.creator === kakaoName;
+  }, [detail, kakaoName]);
 
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    if (!detail || !kakaoName || detail.creator !== kakaoName) {
+      alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+      return;
+    }
 
- const handleDelete = async () => {
-  if (!selectedId) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "promises", selectedId));
+      closeDetail();
+    } catch (e) {
+      console.error(e);
+      alert("약속 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-  if (!detail || !currentUser || detail.creator !== currentUser) {
-    alert('이 약속은 만든 사람만 삭제할 수 있습니다.');
-    return;
+  // ✅ 로그아웃은 NextAuth만
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: "/login" });
+  };
+
+  // 로딩 중 화면
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-10 max-w-5xl">
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              로딩 중…
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
-  setDeleting(true);
-  try {
-    await deleteDoc(doc(db, 'promises', selectedId));
-    closeDetail();
-  } catch (e) {
-    console.error(e);
-    alert('약속 삭제 중 오류가 발생했습니다.');
-  } finally {
-    setDeleting(false);
-  }
-};
-
-  // 3) 훅 선언이 모두 끝난 "뒤"에서 로그인 가드로 다른 JSX 리턴
-  if (!currentUser) {
-    return <FallbackUserLogin />;
-  }
+  // 인증 안 된 경우 (useEffect가 /login 보내지만, 순간 깜빡임 방지)
+  if (!session) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -197,26 +226,22 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
             <h1 className="text-3xl font-bold">Promise Room</h1>
             <p className="text-muted-foreground">친구들과 함께하는 약속 관리</p>
           </div>
+
           <div className="flex items-center gap-2">
+            {/* ✅ 로그인 사용자 표시 */}
+            <div className="text-sm font-semibold px-3 py-2 border rounded-md bg-white">
+              {kakaoName ?? "사용자"}님
+            </div>
+
             <Link href="/create">
               <Button>
                 <PlusCircle className="w-4 h-4 mr-2" />
                 새 약속 만들기
               </Button>
             </Link>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await signOut(auth); // Firebase 세션 종료
-                  logout();            // 우리 컨텍스트/세션Storage 종료
-                  window.location.href = '/';
-                } catch (e) {
-                  console.error(e);
-                  alert('로그아웃 중 오류가 발생했습니다.');
-                }
-              }}
-            >
+
+            {/* ✅ 로그아웃 버튼 1개만 */}
+            <Button variant="outline" onClick={handleLogout}>
               로그아웃
             </Button>
           </div>
@@ -247,19 +272,28 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {promises.map((p) => (
-              <button key={p.id} onClick={() => openDetail(p.id)} className="text-left">
+              <button
+                key={p.id}
+                onClick={() => openDetail(p.id)}
+                className="text-left"
+              >
                 <Card className="hover:shadow-md transition">
                   <CardHeader>
-                    <CardTitle className="text-2xl">{p.title || '(제목 없음)'}</CardTitle>
-                    <div className="mt-1 flex items-center gap-2">
-  <Badge className="rounded-full px-2 py-0.5 text-[11px]">만든 사람</Badge>
-  <span className="inline-flex items-center gap-1 text-sm font-semibold">
-    <UserIcon className="w-4 h-4" />
-    {displayCreator(p)}
-  </span>
-</div>
+                    <CardTitle className="text-2xl">
+                      {p.title || "(제목 없음)"}
+                    </CardTitle>
 
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge className="rounded-full px-2 py-0.5 text-[11px]">
+                        만든 사람
+                      </Badge>
+                      <span className="inline-flex items-center gap-1 text-sm font-semibold">
+                        <UserIcon className="w-4 h-4" />
+                        {displayCreator(p.creator)}
+                      </span>
+                    </div>
                   </CardHeader>
+
                   <CardContent className="space-y-2">
                     <div className="flex items-center gap-2">
                       <CalendarDays className="w-4 h-4 text-primary" />
@@ -267,11 +301,11 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-primary" />
-                      <span>{p.time || '시간 미정'}</span>
+                      <span>{p.time || "시간 미정"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-primary" />
-                      <span>{p.location || '장소 미정'}</span>
+                      <span>{p.location || "장소 미정"}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -288,19 +322,23 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> 불러오는 중…
             </div>
           ) : !detail ? (
-            <div className="py-8 text-center text-muted-foreground">약속을 찾을 수 없습니다.</div>
+            <div className="py-8 text-center text-muted-foreground">
+              약속을 찾을 수 없습니다.
+            </div>
           ) : (
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl">{detail.title}</DialogTitle>
-               <div className="mt-1 flex items-center gap-2">
-  <Badge className="rounded-full px-2 py-0.5 text-[11px]">만든 사람</Badge>
-  <span className="inline-flex items-center gap-1 text-sm font-semibold">
-    <UserIcon className="w-4 h-4" />
-    {displayCreator(detail)}
-  </span>
-</div>
 
+                <div className="mt-1 flex items-center gap-2">
+                  <Badge className="rounded-full px-2 py-0.5 text-[11px]">
+                    만든 사람
+                  </Badge>
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold">
+                    <UserIcon className="w-4 h-4" />
+                    {displayCreator(detail.creator)}
+                  </span>
+                </div>
               </DialogHeader>
 
               <div className="space-y-3">
@@ -310,14 +348,16 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
                 </div>
                 <div className="flex items-center gap-3 text-lg">
                   <Clock className="w-5 h-5 text-primary" />
-                  <span>{detail.time || '시간 미정'}</span>
+                  <span>{detail.time || "시간 미정"}</span>
                 </div>
                 <div className="flex items-center gap-3 text-lg">
                   <MapPin className="w-5 h-5 text-primary" />
-                  <span>{detail.location || '장소 미정'}</span>
+                  <span>{detail.location || "장소 미정"}</span>
                 </div>
                 {detail.penalty && (
-                  <div className="text-sm text-muted-foreground">벌칙: {detail.penalty}</div>
+                  <div className="text-sm text-muted-foreground">
+                    벌칙: {detail.penalty}
+                  </div>
                 )}
               </div>
 
@@ -328,6 +368,7 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
                     페이지로 열기
                   </Link>
                 </Button>
+
                 <div className="flex gap-2">
                   <DialogClose asChild>
                     <Button variant="outline">
@@ -335,8 +376,13 @@ const displayCreator = (src: { creator?: string } | null | undefined) =>
                       닫기
                     </Button>
                   </DialogClose>
+
                   {canDelete && (
-                    <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={deleting}
+                    >
                       {deleting ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : (

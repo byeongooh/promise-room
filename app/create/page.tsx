@@ -1,15 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-
-import FallbackCreatePromiseForm from "@/components/fallback/FallbackCreatePromiseForm";
-import FallbackUserLogin from "@/components/fallback/FallbackUserLogin";
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Calendar, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useUser } from "@/lib/user-context";
 
 import LocationPicker, { PickedLocation } from "@/components/location-picker";
 
@@ -17,36 +13,46 @@ import LocationPicker, { PickedLocation } from "@/components/location-picker";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
+// ✅ NextAuth
+import { useSession } from "next-auth/react";
+
+import FallbackCreatePromiseForm from "@/components/fallback/FallbackCreatePromiseForm";
+
 export default function CreatePage() {
   const router = useRouter();
-  const { currentUser } = useUser();
+  const { data: session, status } = useSession();
+
+  const currentUser = useMemo(() => {
+    const n = session?.user?.name?.trim();
+    return n && n.length > 0 ? n : null;
+  }, [session?.user?.name]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const UserLoginComponent = FallbackUserLogin;
-  const CreatePromiseFormComponent = FallbackCreatePromiseForm;
-
-  if (!currentUser) {
-    return <UserLoginComponent />;
-  }
+  // ✅ 로그인 안 되어 있으면 /login
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session) router.replace("/login");
+  }, [status, session, router]);
 
   // Firestore에 데이터 저장하는 함수
- const handleCreatePromise = async (promiseData: {
-  title: string;
-  date: string;
-  time: string;
-  penalty: string;
-  password: string;
+  const handleCreatePromise = async (promiseData: {
+    title: string;
+    date: string;
+    time: string;
+    penalty: string;
+    password: string;
   }) => {
     if (!db) {
       setError("Firestore 데이터베이스에 연결할 수 없습니다. lib/firebase.ts 파일을 확인하세요.");
       console.error("Firestore db object is null. Check firebase initialization.");
       return;
     }
+
     if (!currentUser) {
-      setError("로그인이 필요합니다.");
+      setError("카카오 로그인 정보(이름)를 가져올 수 없습니다.");
       return;
     }
 
@@ -71,16 +77,16 @@ export default function CreatePage() {
         locationLng: pickedLocation.lng,
         locationPlaceId: pickedLocation.placeId ?? null,
 
-
         penalty: promiseData.penalty,
         password: promiseData.password,
 
+        // ✅ 무조건 카카오 이름으로만 저장 (123 제거 핵심)
         creator: currentUser,
         participants: [currentUser],
+
         createdAt: serverTimestamp(),
       });
 
-      console.log("Document written with ID: ", docRef.id);
       router.push(`/promise/${docRef.id}`);
     } catch (e) {
       console.error("Error adding document: ", e);
@@ -89,6 +95,22 @@ export default function CreatePage() {
       setIsSubmitting(false);
     }
   };
+
+  // 로딩 중
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-10 max-w-2xl">
+          <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+            로딩 중…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 인증 안 된 경우 (useEffect가 /login 보내지만 깜빡임 방지)
+  if (!session) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -108,16 +130,18 @@ export default function CreatePage() {
             <h1 className="text-3xl font-bold">새로운 약속 만들기</h1>
           </div>
           <p className="text-muted-foreground">친구들과 함께할 약속을 생성하세요</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            현재 로그인: <b>{currentUser ?? "사용자"}</b>
+          </p>
         </div>
 
-        {/* ✅ 지도에서 장소 선택 (폼보다 위에 두는 걸 추천) */}
+        {/* ✅ 지도에서 장소 선택 */}
         <div className="mb-6">
           <div className="rounded-xl border bg-card p-4">
             <p className="font-semibold mb-2">지도에서 장소 선택</p>
             <LocationPicker
               onSelect={(loc) => {
                 setPickedLocation(loc);
-                // 기존 에러가 "장소 선택" 관련이면 바로 지워줌
                 setError((prev) => (prev?.includes("지도에서 장소") ? null : prev));
               }}
             />
@@ -135,8 +159,8 @@ export default function CreatePage() {
           </div>
         </div>
 
-        {/* 약속 생성 폼 */}
-        <CreatePromiseFormComponent onCreate={handleCreatePromise} currentUser={currentUser} />
+        {/* 약속 생성 폼 (컴포넌트는 그대로 재사용) */}
+        <FallbackCreatePromiseForm onCreate={handleCreatePromise} currentUser={currentUser} />
 
         {/* 로딩 */}
         {isSubmitting && (

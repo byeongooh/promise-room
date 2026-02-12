@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { UserProvider } from "@/lib/user-context"
+import Providers from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "Promise Room - 약속 관리",
@@ -18,9 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans antialiased">
-        <UserProvider>{children}</UserProvider>
-        <Analytics />
-      </body>
+  <Providers>
+    <UserProvider>{children}</UserProvider>
+  </Providers>
+</body>
+
     </html>
   )
 }
