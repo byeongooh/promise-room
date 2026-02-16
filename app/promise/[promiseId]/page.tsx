@@ -66,7 +66,13 @@ interface PromiseData {
   time: string;
   location: string;
   penalty: string;
+
+  // 구버전: creator(이름)
   creator: string;
+
+  // ✅ v2 대비: creatorId (없을 수도 있으니 optional)
+  creatorId?: string;
+
   participants: string[];
   password: string;
   createdAt?: Timestamp;
@@ -77,7 +83,11 @@ interface PromiseData {
 
 export default function PromisePage() {
   const router = useRouter();
+
+  // ✅ status 꼭 같이 꺼내야 함
   const { data: session, status } = useSession();
+
+  const currentUserId = (session?.user as any)?.id as string | undefined;
 
   // ✅ 현재 사용자 = 카카오 이름 (이걸로만 판단)
   const currentUser = useMemo(() => {
@@ -88,13 +98,15 @@ export default function PromisePage() {
   const [promiseId, setPromiseId] = useState<string>("");
   const [promiseData, setPromiseData] = useState<PromiseData | null>(null);
 
-  // 접근 제어: 참여자/방장은 자동 접근, 아니면 비번 입력 필요
+  // 접근 제어
   const [hasAccess, setHasAccess] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+
+  // ✅ isDeleting 한 번만!
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [alarm10Min, setAlarm10Min] = useState(false);
@@ -158,7 +170,7 @@ export default function PromisePage() {
   // ID 또는 사용자 상태가 확정되면 로드
   useEffect(() => {
     if (!promiseId) return;
-    if (status !== "authenticated") return; // 로그인 완료 후 로드
+    if (status !== "authenticated") return;
     fetchPromiseData(promiseId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promiseId, status, currentUser]);
@@ -168,18 +180,11 @@ export default function PromisePage() {
     if (!hasAccess || !promiseData?.location) return;
 
     const kakao = (window as any).kakao;
-    if (!kakao?.maps) {
-      console.warn("MAP: kakao.maps 없음 (SDK 로드 확인 필요)");
-      return;
-    }
+    if (!kakao?.maps) return;
 
     kakao.maps.load(() => {
       const container = document.getElementById("kakao-map");
-      if (!container) {
-        console.warn("MAP: #kakao-map div를 못 찾음 (id 확인 필요)");
-        return;
-      }
-
+      if (!container) return;
       container.innerHTML = "";
 
       const map = new kakao.maps.Map(container, {
@@ -190,55 +195,72 @@ export default function PromisePage() {
       const lat = (promiseData as any).locationLat;
       const lng = (promiseData as any).locationLng;
 
-      if (
-        typeof lat === "number" &&
-        typeof lng === "number" &&
-        !Number.isNaN(lat) &&
-        !Number.isNaN(lng)
-      ) {
+      if (typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng)) {
         const pos = new kakao.maps.LatLng(lat, lng);
-
         const marker = new kakao.maps.Marker({ map, position: pos });
-
         const infowindow = new kakao.maps.InfoWindow({
           content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
         });
         infowindow.open(map, marker);
-
         map.setCenter(pos);
         map.setLevel(3);
         return;
       }
 
-      if (!kakao.maps.services) {
-        console.warn("MAP: kakao.maps.services 없음 (libraries=services 확인)");
-        return;
-      }
+      if (!kakao.maps.services) return;
 
       const places = new kakao.maps.services.Places();
       places.keywordSearch(promiseData.location, (result: any, status2: any) => {
-        if (status2 !== kakao.maps.services.Status.OK || !result?.length) {
-          console.warn("MAP: 장소 검색 실패:", promiseData.location, status2);
-          return;
-        }
-
+        if (status2 !== kakao.maps.services.Status.OK || !result?.length) return;
         const first = result[0];
         const pos = new kakao.maps.LatLng(Number(first.y), Number(first.x));
-
         const marker = new kakao.maps.Marker({ map, position: pos });
-
         const infowindow = new kakao.maps.InfoWindow({
           content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
         });
         infowindow.open(map, marker);
-
         map.setCenter(pos);
         map.setLevel(3);
       });
     });
   }, [hasAccess, promiseData?.location, (promiseData as any)?.locationLat, (promiseData as any)?.locationLng]);
 
-  // ========== 비밀번호 제출 (보기 권한만) ==========
+  // ✅ 삭제 (handleDelete는 하나만!)
+  const handleDelete = async () => {
+    console.log("DELETE HANDLER VERSION: 2026-02-16 v1");
+
+    if (!promiseData || !promiseId) return;
+
+    // v2 creatorId 있으면 id로 검사
+    if (promiseData.creatorId) {
+      if (!currentUserId || promiseData.creatorId !== currentUserId) {
+        alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+        return;
+      }
+    } else {
+      // 구버전: creator 이름 비교
+      if (!currentUser) return;
+      if (promiseData.creator !== currentUser) {
+        alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+        return;
+      }
+    }
+
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "promises", promiseId));
+      window.location.href = "/";
+    } catch (err) {
+      console.error(err);
+      alert("약속 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // ========== 비밀번호 제출 ==========
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promiseData) return;
@@ -251,7 +273,7 @@ export default function PromisePage() {
     }
   };
 
-  // ========== 실제 참여하기 ==========
+  // ========== 참여하기 ==========
   const handleJoinPromise = async () => {
     if (!promiseData || !promiseId) return;
     if (!currentUser) return;
@@ -309,31 +331,7 @@ export default function PromisePage() {
     }
   };
 
-  // ========== 삭제 ==========
-  const handleDelete = async () => {
-    if (!promiseData || !promiseId) return;
-    if (!currentUser) return;
-
-    if (promiseData.creator !== currentUser) {
-      alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
-      return;
-    }
-
-    if (isDeleting) return;
-
-    setIsDeleting(true);
-    try {
-      await deleteDoc(doc(db, "promises", promiseId));
-      window.location.href = "/";
-    } catch (err) {
-      console.error(err);
-      alert("약속 삭제 중 오류가 발생했습니다.");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // ========== 렌더링 시작 ==========
+  // ========== 렌더링 ==========
   if (status === "loading" || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -343,10 +341,8 @@ export default function PromisePage() {
     );
   }
 
-  // 인증 안 된 경우 (useEffect가 /login 보내지만 깜빡임 방지)
   if (!session) return null;
 
-  // 문서 없음
   if (!promiseData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -364,7 +360,6 @@ export default function PromisePage() {
     );
   }
 
-  // 🔐 비밀번호 입력 화면
   if (!hasAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -419,7 +414,6 @@ export default function PromisePage() {
     );
   }
 
-  // ✅ 약속 데이터 있고 접근 허용된 화면
   const isOwner = promiseData.creator === currentUser;
   const isParticipant = promiseData.participants.includes(currentUser || "");
 
@@ -427,38 +421,29 @@ export default function PromisePage() {
   let displayDate = "날짜 정보 없음";
   if (promiseData.date) {
     if (promiseData.date instanceof Timestamp) {
-      try {
-        displayDate = promiseData.date.toDate().toLocaleDateString("ko-KR", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          weekday: "long",
-        });
-      } catch {
-        displayDate = "날짜 변환 오류";
-      }
+      displayDate = promiseData.date.toDate().toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "long",
+      });
     } else if (typeof promiseData.date === "string") {
-      try {
-        const dateObj = new Date(promiseData.date + "T00:00:00Z");
-        displayDate = !isNaN(dateObj.getTime())
-          ? dateObj.toLocaleDateString("ko-KR", {
-              timeZone: "Asia/Seoul",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })
-          : promiseData.date;
-      } catch {
-        displayDate = promiseData.date;
-      }
+      const dateObj = new Date(promiseData.date + "T00:00:00Z");
+      displayDate = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString("ko-KR", {
+            timeZone: "Asia/Seoul",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            weekday: "long",
+          })
+        : promiseData.date;
     }
   }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
-        {/* 상단 바 */}
         <div className="flex items-center justify-between mb-6">
           <Button variant="ghost" asChild>
             <Link href="/">
@@ -494,7 +479,6 @@ export default function PromisePage() {
           )}
         </div>
 
-        {/* 기본 정보 카드 */}
         <Card className="mb-8 animate-fade-in">
           <CardHeader>
             <CardTitle className="text-3xl font-bold mb-2">{promiseData.title}</CardTitle>
@@ -518,7 +502,6 @@ export default function PromisePage() {
               <span>벌칙: {promiseData.penalty || "없음"}</span>
             </div>
 
-            {/* ✅ 참여 / 참여 취소 */}
             {!isParticipant ? (
               <div className="pt-4">
                 <Button onClick={handleJoinPromise} disabled={isJoining} className="w-full">
@@ -545,7 +528,6 @@ export default function PromisePage() {
           </CardContent>
         </Card>
 
-        {/* 위치 공유 + 알림 설정 */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <Card className="animate-fade-in-delay">
             <CardHeader>
@@ -591,7 +573,6 @@ export default function PromisePage() {
           </Card>
         </div>
 
-        {/* 참여자 */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>

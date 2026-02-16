@@ -38,63 +38,80 @@ export default function CreatePage() {
   }, [status, session, router]);
 
   // Firestore에 데이터 저장하는 함수
-  const handleCreatePromise = async (promiseData: {
-    title: string;
-    date: string;
-    time: string;
-    penalty: string;
-    password: string;
-  }) => {
-    if (!db) {
-      setError("Firestore 데이터베이스에 연결할 수 없습니다. lib/firebase.ts 파일을 확인하세요.");
-      console.error("Firestore db object is null. Check firebase initialization.");
-      return;
-    }
+const handleCreatePromise = async (promiseData: {
+  title: string;
+  date: string;
+  time: string;
+  penalty: string;
+  password: string;
+}) => {
+  if (!db) {
+    setError("Firestore 데이터베이스에 연결할 수 없습니다. lib/firebase.ts 파일을 확인하세요.");
+    return;
+  }
 
-    if (!currentUser) {
-      setError("카카오 로그인 정보(이름)를 가져올 수 없습니다.");
-      return;
-    }
+  // ✅ userId는 이제 필수 (안정 ID)
+  const userId = (session?.user as any)?.id as string | undefined;
+  if (!userId) {
+    setError("로그인 사용자 ID를 가져올 수 없습니다. (session.user.id)");
+    return;
+  }
 
-    // ✅ 지도 선택 필수
-    if (!pickedLocation) {
-      setError("지도에서 장소를 선택해주세요.");
-      return;
-    }
+  // ✅ 표시 이름은 아직 필요 (UI용)
+  if (!currentUser) {
+    setError("카카오 로그인 정보(이름)를 가져올 수 없습니다.");
+    return;
+  }
 
-    setIsSubmitting(true);
-    setError(null);
+  if (!pickedLocation) {
+    setError("지도에서 장소를 선택해주세요.");
+    return;
+  }
 
-    try {
-      const docRef = await addDoc(collection(db, "promises"), {
-        title: promiseData.title,
-        date: promiseData.date,
-        time: promiseData.time,
+  setIsSubmitting(true);
+  setError(null);
 
-        // ✅ 장소는 지도 선택값으로 저장
-        location: pickedLocation.text,
-        locationLat: pickedLocation.lat,
-        locationLng: pickedLocation.lng,
-        locationPlaceId: pickedLocation.placeId ?? null,
+  try {
+    const payload = {
+      // ---------- 공통 ----------
+      title: promiseData.title,
+      date: promiseData.date, // (2단계에서 Timestamp로 바꾸자)
+      time: promiseData.time,
 
-        penalty: promiseData.penalty,
-        password: promiseData.password,
+      // 장소
+      location: pickedLocation.text,
+      locationLat: pickedLocation.lat,
+      locationLng: pickedLocation.lng,
+      locationPlaceId: pickedLocation.placeId ?? null,
 
-        // ✅ 무조건 카카오 이름으로만 저장 (123 제거 핵심)
-        creator: currentUser,
-        participants: [currentUser],
+      penalty: promiseData.penalty,
+      password: promiseData.password,
 
-        createdAt: serverTimestamp(),
-      });
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
 
-      router.push(`/promise/${docRef.id}`);
-    } catch (e) {
-      console.error("Error adding document: ", e);
-      setError("약속을 저장하는 중 오류가 발생했습니다.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      // ---------- v2: ID 기반 ----------
+      creatorId: userId,
+      creatorName: currentUser,
+      participantIds: [userId],
+      participantNames: [currentUser],
+      status: "active",
+
+      // ---------- v1(레거시): 기존 화면 안 깨지게 유지 ----------
+      creator: currentUser,
+      participants: [currentUser],
+    };
+
+    const docRef = await addDoc(collection(db, "promises"), payload);
+    router.push(`/promise/${docRef.id}`);
+  } catch (e) {
+    console.error("Error adding document: ", e);
+    setError("약속을 저장하는 중 오류가 발생했습니다.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   // 로딩 중
   if (status === "loading") {

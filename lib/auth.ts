@@ -6,20 +6,25 @@ export const authOptions: NextAuthOptions = {
   providers: [
     KakaoProvider({
       clientId: process.env.KAKAO_CLIENT_ID!,
-      clientSecret: process.env.KAKAO_CLIENT_SECRET!, // 카카오 “클라이언트 시크릿” 사용 ON이면 필수
+      clientSecret: process.env.KAKAO_CLIENT_SECRET!,
     }),
   ],
-
   secret: process.env.NEXTAUTH_SECRET,
-
-  pages: {
-    signIn: "/login",
-  },
+  pages: { signIn: "/login" },
 
   callbacks: {
+    async jwt({ token, account }) {
+      if (account?.provider === "kakao") {
+        (token as any).uid = `kakao:${account.providerAccountId}`;
+        // uid를 표준화해서 앞으로 provider가 늘어나도 안전
+      }
+      return token;
+    },
+
     async session({ session, token }) {
-      // ✅ 앞으로 DB 사용자 키는 이것만 사용
-      (session.user as any).id = token.sub; // 카카오 고유 사용자 id(대부분 sub로 들어옴)
+      if (session.user) {
+        (session.user as any).id = (token as any).uid ?? token.sub;
+      }
       return session;
     },
   },
