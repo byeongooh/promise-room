@@ -23,7 +23,10 @@ import {
   joinPromise as apiJoinPromise,
   leavePromise as apiLeavePromise,
   deletePromise as apiDeletePromise,
+  fetchPromiseSummary,
+  type PromiseSummary,
 } from "../../../lib/api-client";
+import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
 
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -78,8 +81,12 @@ export default function PromisePage() {
     return n && n.length > 0 ? n : null;
   }, [session?.user?.name]);
 
+  const { ready: firebaseReady } = useFirebaseAuth();
+
   const [promiseId, setPromiseId] = useState<string>("");
   const [promiseData, setPromiseData] = useState<PromiseData | null>(null);
+  // 참여자가 아닐 때 비밀번호 화면에 쓸 최소 정보 (제목만)
+  const [summary, setSummary] = useState<PromiseSummary | null>(null);
 
   // 접근 제어
   const [hasAccess, setHasAccess] = useState(false);
@@ -111,48 +118,49 @@ export default function PromisePage() {
   }, []);
 
   // ========== Firestore에서 문서 로드 ==========
+  // 참여자가 아니면 문서를 아예 읽을 수 없다(permission-denied).
+  // 그 경우 서버 요약 API로 제목만 받아 비밀번호 화면을 그린다.
   const fetchPromiseData = async (id: string) => {
     if (!id) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
-
     try {
-      const ref = doc(db, "promises", id);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        setPromiseData(null);
-        setHasAccess(false);
+      const snap = await getDoc(doc(db, "promises", id));
+      if (snap.exists()) {
+        const merged: PromiseData = { ...(snap.data() as PromiseData), id: snap.id };
+        setPromiseData(merged);
+        setHasAccess(
+          isPromiseOwner(merged, currentUserId, currentUser ?? undefined) ||
+            isPromiseParticipant(merged, currentUserId, currentUser ?? undefined)
+        );
         return;
       }
-
-      const data = snap.data() as PromiseData;
-      const merged: PromiseData = { ...data, id: snap.id };
-      setPromiseData(merged);
-
-      // ✅ 로그인된 사용자가 방장/참여자면 비번 없이 접근 (ID 우선, 이름 폴백)
-      setHasAccess(
-        isPromiseOwner(merged, currentUserId, currentUser ?? undefined) ||
-          isPromiseParticipant(merged, currentUserId, currentUser ?? undefined)
-      );
     } catch (e) {
-      console.error(e);
+      console.warn("문서 직접 조회 실패 — 요약으로 전환:", e);
+    }
+
+    // 여기 오면 참여자가 아니거나 문서가 없다.
+    try {
+      const s = await fetchPromiseSummary(id);
+      setSummary(s);
       setPromiseData(null);
       setHasAccess(false);
-    } finally {
-      setIsLoading(false);
+    } catch {
+      setSummary(null);
+      setPromiseData(null);
+      setHasAccess(false);
     }
   };
 
-  // ID 또는 사용자 상태가 확정되면 로드
+  // Firebase 로그인까지 끝난 뒤에 조회한다 (그 전에 쏘면 권한 오류가 난다)
   useEffect(() => {
     if (!promiseId) return;
-    if (status !== "authenticated") return;
-    fetchPromiseData(promiseId);
+    if (!firebaseReady) return;
+    setIsLoading(true);
+    fetchPromiseData(promiseId).finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promiseId, status, currentUser]);
+  }, [promiseId, firebaseReady, currentUser]);
 
   // ================= 📍 카카오 지도 표시 =================
   useEffect(() => {
@@ -294,7 +302,8 @@ export default function PromisePage() {
 
   if (!session) return null;
 
-  if (!promiseData) {
+  // 문서도 못 읽고 요약도 못 받았다면 없는 약속이다.
+  if (!promiseData && !summary) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -311,7 +320,7 @@ export default function PromisePage() {
     );
   }
 
-  if (!hasAccess) {
+  if (!hasAccess || !promiseData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <Card className="w-full max-w-md sm:max-w-lg rounded-2xl shadow-lg border">
@@ -321,7 +330,7 @@ export default function PromisePage() {
               <CardTitle className="text-2xl">비밀번호 입력</CardTitle>
             </div>
             <CardDescription className="text-base">
-              "{promiseData.title}" 약속은 비밀번호로 보호되어 있습니다.
+              "{summary?.title ?? promiseData?.title}" 약속에 참여하려면 비밀번호가 필요합니다.
             </CardDescription>
           </CardHeader>
 

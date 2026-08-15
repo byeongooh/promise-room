@@ -12,13 +12,14 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   Timestamp,
-  getDocs,
   doc,
   getDoc,
 } from "firebase/firestore";
 
 import { deletePromise } from "@/lib/api-client";
+import { useFirebaseAuth } from "@/components/firebase-auth-provider";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -61,9 +62,11 @@ export default function HomePage() {
   }, [session?.user?.name]);
 
   const currentUserId = session?.user?.id;
+  const { ready: firebaseReady } = useFirebaseAuth();
 
   const [promises, setPromises] = useState<PromiseDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -77,41 +80,43 @@ export default function HomePage() {
     if (!session) router.replace("/login");
   }, [status, session, router]);
 
-  // ✅ Firestore 구독 (로그인 완료 후에만)
+  // ✅ Firestore 구독 — 내가 참여한 약속만.
+  // NextAuth 로그인만으로는 부족하고 Firebase 로그인까지 끝나야(ready) 조회할 수 있다.
   useEffect(() => {
-    if (status !== "authenticated") {
+    if (!firebaseReady || !currentUserId) {
       setPromises([]);
-      setLoading(status === "loading");
+      setLoading(status === "loading" || status === "authenticated");
       return;
     }
 
-    const colRef = collection(db, "promises");
-    const q = query(colRef, orderBy("createdAt", "desc"));
+    const q = query(
+      collection(db, "promises"),
+      where("participantIds", "array-contains", currentUserId),
+      orderBy("createdAt", "desc")
+    );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: PromiseDoc[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as PromiseData),
-        }));
-        setPromises(rows);
+        setPromises(snap.docs.map((d) => ({ id: d.id, ...(d.data() as PromiseData) })));
+        setLoadError(null);
         setLoading(false);
       },
-      async () => {
-        // fallback
-        const snap2 = await getDocs(colRef);
-        const rows2: PromiseDoc[] = snap2.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as PromiseData),
-        }));
-        setPromises(rows2);
+      (err) => {
+        // 예전에는 여기서 전체 컬렉션을 다시 읽는 폴백이 있었는데,
+        // 권한 오류를 조용히 삼켜 빈 목록처럼 보이게 만들었다. 이제 드러낸다.
+        console.error("약속 목록 구독 실패:", err);
+        setLoadError(
+          err.code === "failed-precondition"
+            ? "색인이 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
+            : "약속 목록을 불러오지 못했습니다."
+        );
         setLoading(false);
       }
     );
 
     return () => unsub();
-  }, [status]);
+  }, [firebaseReady, currentUserId, status]);
 
   const displayCreator = (p: PromiseDoc) => {
     const name = p.creatorName ?? p.creator;
@@ -249,13 +254,24 @@ export default function HomePage() {
               로딩 중…
             </CardContent>
           </Card>
+        ) : loadError ? (
+          <Card className="border-destructive/40">
+            <CardContent className="py-16 text-center">
+              <div className="text-3xl mb-2">⚠️</div>
+              <h2 className="text-xl font-semibold mb-1">약속을 불러오지 못했습니다</h2>
+              <p className="text-muted-foreground mb-4">{loadError}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                다시 시도
+              </Button>
+            </CardContent>
+          </Card>
         ) : promises.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
               <div className="text-3xl mb-2">🗓️</div>
               <h2 className="text-xl font-semibold mb-1">아직 약속이 없습니다</h2>
               <p className="text-muted-foreground mb-4">
-                새 약속 만들기 버튼을 눌러 첫 약속을 만들어보세요
+                참여한 약속만 여기에 표시됩니다. 새 약속을 만들거나 친구에게 받은 링크로 참여하세요.
               </p>
               <Link href="/create">
                 <Button>
