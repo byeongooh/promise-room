@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import Link from "next/link";
 
 import LocationPicker, { PickedLocation } from "@/components/location-picker";
@@ -20,11 +19,6 @@ import FallbackCreatePromiseForm from "@/components/fallback/FallbackCreatePromi
 export default function CreatePage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-
-  const currentUser = useMemo(() => {
-    const n = session?.user?.name?.trim();
-    return n && n.length > 0 ? n : null;
-  }, [session?.user?.name]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
@@ -80,9 +74,9 @@ const handleCreatePromise = async (promiseData: {
   // 로딩 중
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-10 max-w-2xl">
-          <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="min-h-screen bg-[var(--tk-ground)]">
+        <div className="container mx-auto max-w-lg px-4 py-10">
+          <div className="rounded-2xl bg-[var(--tk-paper)] p-6 text-center text-[var(--tk-faint)] shadow-sm ring-1 ring-black/5">
             로딩 중…
           </div>
         </div>
@@ -94,66 +88,65 @@ const handleCreatePromise = async (promiseData: {
   if (!session) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        {/* 뒤로가기 */}
-        <Link href="/" passHref>
-          <Button variant="ghost" className="mb-6" disabled={isSubmitting}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            대시보드로 돌아가기
-          </Button>
+    <div className="min-h-screen bg-[var(--tk-ground)]">
+      <div className="container mx-auto max-w-lg px-4 py-5">
+        <Link
+          href="/"
+          className="-ml-2 mb-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
+        >
+          <ArrowLeft className="size-4" /> 대시보드
         </Link>
 
-        {/* 제목 */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Calendar className="w-10 h-10 text-primary" />
-            <h1 className="text-3xl font-bold">새로운 약속 만들기</h1>
-          </div>
-          <p className="text-muted-foreground">친구들과 함께할 약속을 생성하세요</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            현재 로그인: <b>{currentUser ?? "사용자"}</b>
+        <h1 className="text-[22px] font-extrabold tracking-tight text-balance break-keep text-[var(--tk-ink)]">
+          새 약속 만들기
+        </h1>
+        <p className="mt-1 mb-4 text-[13px] text-[var(--tk-sub)]">
+          장소를 고르고 정보를 채우면 티켓 한 장이 만들어집니다.
+        </p>
+
+        {/* 1단계 — 장소 */}
+        <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
+          <p className="mb-3 flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+            <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
+              1
+            </span>
+            어디서 만날까요
           </p>
-        </div>
 
-        {/* ✅ 지도에서 장소 선택 */}
-        <div className="mb-6">
-          <div className="rounded-xl border bg-card p-4">
-            <p className="font-semibold mb-2">지도에서 장소 선택</p>
-            <LocationPicker
-              onSelect={(loc) => {
-                setPickedLocation(loc);
-                setError((prev) => (prev?.includes("지도에서 장소") ? null : prev));
-              }}
-            />
+          <LocationPicker
+            onSelect={(loc) => {
+              setPickedLocation(loc);
+              setError((prev) => (prev?.includes("지도에서 장소") ? null : prev));
+            }}
+          />
 
-            <div className="mt-3 text-sm text-muted-foreground">
-              {pickedLocation ? (
-                <span>
-                  선택됨: <b>{pickedLocation.text}</b> ({pickedLocation.lat.toFixed(5)},{" "}
-                  {pickedLocation.lng.toFixed(5)})
-                </span>
-              ) : (
-                <span>아직 선택된 장소가 없습니다. 지도에서 클릭/검색해서 선택하세요.</span>
-              )}
-            </div>
+          <div
+            className={`mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] ${
+              pickedLocation
+                ? "bg-[var(--tk-hot-bg)] text-[var(--tk-hot-ink)]"
+                : "bg-[var(--tk-ground)] text-[var(--tk-faint)]"
+            }`}
+          >
+            <MapPin className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {pickedLocation ? pickedLocation.text : "지도를 눌러 장소를 골라주세요"}
+            </span>
           </div>
-        </div>
+        </section>
 
-        {/* 약속 생성 폼 (컴포넌트는 그대로 재사용) */}
-        <FallbackCreatePromiseForm onCreate={handleCreatePromise} currentUser={currentUser} />
+        {/* 2단계 — 약속 정보 */}
+        <section className="rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
+          <p className="mb-3 flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+            <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
+              2
+            </span>
+            무슨 약속인가요
+          </p>
+          <FallbackCreatePromiseForm onCreate={handleCreatePromise} isSubmitting={isSubmitting} />
+        </section>
 
-        {/* 로딩 */}
-        {isSubmitting && (
-          <div className="mt-4 flex items-center justify-center text-primary">
-            <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            <span>약속을 저장하는 중...</span>
-          </div>
-        )}
-
-        {/* 오류 */}
         {error && (
-          <div className="mt-4 p-4 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-center">
+          <div className="mt-3 rounded-xl border border-[var(--tk-warn)]/30 bg-[var(--tk-warn)]/8 px-4 py-3 text-[13px] text-[var(--tk-warn)]">
             {error}
           </div>
         )}
