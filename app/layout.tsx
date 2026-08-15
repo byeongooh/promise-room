@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { UserProvider } from "@/lib/user-context"
 import Providers from "@/components/providers";
+import FirebaseAuthProvider from "@/components/firebase-auth-provider";
 
 export const metadata: Metadata = {
   title: "Promise Room - 약속 관리",
@@ -19,11 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans antialiased">
-  <Providers>
-    <UserProvider>{children}</UserProvider>
-  </Providers>
-</body>
-
+        <Providers>
+          <FirebaseAuthProvider>
+            <UserProvider>{children}</UserProvider>
+          </FirebaseAuthProvider>
+        </Providers>
+      </body>
     </html>
   )
 }
