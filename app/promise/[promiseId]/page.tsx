@@ -27,6 +27,7 @@ import {
   type PromiseSummary,
 } from "../../../lib/api-client";
 import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
+import SharePromise from "../../../components/share-promise";
 import {
   displayLocation,
   formatWhen,
@@ -409,7 +410,10 @@ export default function PromisePage() {
             <ArrowLeft className="size-4" /> 대시보드
           </Link>
 
-          {isOwner && (
+          <div className="flex items-center gap-2">
+            <SharePromise promiseId={promiseId} title={promiseData.title} />
+
+            {isOwner && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -440,7 +444,8 @@ export default function PromisePage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
+            )}
+          </div>
         </div>
 
         {/* 히어로 티켓 */}

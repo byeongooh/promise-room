@@ -20,6 +20,7 @@ import { deletePromise } from "@/lib/api-client";
 import { useFirebaseAuth } from "@/components/firebase-auth-provider";
 import PromiseTicket from "@/components/promise-ticket";
 import Wordmark from "@/components/wordmark";
+import SharePromise from "@/components/share-promise";
 import {
   displayLocation,
   formatWhen,
@@ -34,6 +35,7 @@ import {
   CalendarDays,
   MapPin,
   PlusCircle,
+  Share2,
   TriangleAlert,
   Trash2,
   Loader2,
@@ -45,7 +47,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose,
 } from "../components/ui/dialog";
 
 // ✅ NextAuth (카카오 로그인)
@@ -419,9 +420,16 @@ export default function HomePage() {
                 </Button>
 
                 <div className="flex gap-2">
-                  <DialogClose asChild>
-                    <Button variant="outline">닫기</Button>
-                  </DialogClose>
+                  <SharePromise
+                    promiseId={detail.id}
+                    title={detail.title}
+                    trigger={
+                      <Button variant="outline">
+                        <Share2 className="w-4 h-4 mr-1.5" />
+                        공유
+                      </Button>
+                    }
+                  />
 
                   {canDelete && (
                     <Button
