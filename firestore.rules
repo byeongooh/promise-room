@@ -1,31 +1,29 @@
 rules_version = '2';
 
 // ============================================================================
-// 중요: 이 규칙이 "할 수 없는 것"
+// 접근 모델
 // ----------------------------------------------------------------------------
-// 이 앱은 NextAuth(카카오) 로그인만 쓰고, Firebase Auth에는 한 번도 로그인하지
-// 않는다 (signInWithCustomToken / onAuthStateChanged 등 어디에도 없음 —
-// lib/firebase.ts가 export하는 auth는 미사용). 그래서 브라우저에서 나가는
-// 모든 Firestore 요청은 request.auth == null 이다.
+// 읽기 : 그 약속의 참여자(participantIds에 내 uid가 있는 사람)만.
+// 쓰기 : 클라이언트는 전면 금지. 생성·참여·탈퇴·삭제는 모두 서버 API가
+//        Admin SDK로 처리한다 (Admin SDK는 이 규칙을 우회하므로 영향 없음).
 //
-// 즉 `request.auth.uid == resource.data.creatorId` 같은 "본인만 삭제/수정"
-// 규칙은 지금 구조에서 쓸 수 없다 — 항상 false가 되어 앱의 모든
-// 생성/참여/삭제가 막힌다. (권한 판단은 지금 클라이언트 코드
-// lib/promise-permissions.ts에서만 이뤄지고 있고, 그게 이 앱의 실질적인
-// 유일한 방어선이다.)
+// 왜 쓰기를 전부 서버로 보냈나
+//   1. 규칙은 필드 단위로 가릴 수 없다. 비밀번호 해시를 약속 문서에 두면
+//      문서를 읽을 수 있는 사람이 해시도 같이 읽는다. 그래서 해시는
+//      promises/{id}/private/ 아래에 두고 서버만 접근하게 했다.
+//      그러면 비밀번호 대조(=참여)와 생성은 필연적으로 서버 일이 된다.
+//   2. "참여자는 자기 자신만 목록에서 뺄 수 있다" 같은 조건은 규칙으로
+//      표현하기 까다롭다. 서버에서 처리하면 그냥 코드로 검사하면 된다.
 //
-// 아래 규칙은 그 한계 안에서 실현 가능한 것만 한다:
-//   1. 문서 모양(필수 필드/타입) 검증 — 깨진 문서가 써지는 것 방지
-//   2. creatorId / creatorName / createdAt 같은 "생성 시점에 정해지는" 필드가
-//      생성 이후 조작되는 것 방지
+// 목록 조회 주의
+//   규칙은 필터가 아니다. 반환되는 문서 중 하나라도 조건을 통과하지 못하면
+//   쿼리 전체가 실패한다. 그래서 대시보드는 반드시
+//   where("participantIds", "array-contains", 내uid) 로 조회해야 한다.
+//   조건 없이 promises 컬렉션을 통째로 조회하면 실패하는데, 그게 의도다.
 //
-// 진짜 "본인만 삭제 가능"을 서버(Firestore)가 강제하게 하려면, NextAuth
-// 로그인 시 서버에서 admin.auth().createCustomToken(kakaoId)로 커스텀
-// 토큰을 발급하는 API 라우트를 추가하고, 클라이언트에서
-// signInWithCustomToken()으로 Firebase Auth에도 로그인시켜야 한다.
-// 그래야 request.auth.uid가 실제로 채워지고, 아래 규칙에
-// `request.auth.uid == resource.data.creatorId` 같은 조건을 의미 있게 넣을
-// 수 있다. 이건 이번 초안에 포함하지 않은 별도 작업이다.
+// uid 형식
+//   항상 "kakao:<카카오ID>" 이다. 접두사 없는 옛 형식은 마이그레이션으로
+//   모두 정리했다. lib/uid.ts 가 유일한 생성 창구다.
 // ============================================================================
 
 service cloud.firestore {
@@ -33,45 +31,30 @@ service cloud.firestore {
 
     match /promises/{promiseId} {
 
-      // 필수 필드 존재 + 타입 검증
-      function hasRequiredFields(data) {
-        return data.title is string && data.title.size() > 0
-          && data.date is string
-          && data.time is string
-          && data.location is string
-          && data.penalty is string
-          && data.password is string;
+      function isParticipant() {
+        return request.auth != null
+          && request.auth.uid in resource.data.get('participantIds', []);
       }
 
-      // v2(ID 기반) 필드가 있다면 타입이 맞는지 검증 (없어도 통과 — v1 문서 호환)
-      function hasValidV2Shape(data) {
-        return (!('creatorId' in data) || data.creatorId is string)
-          && (!('creatorName' in data) || data.creatorName is string)
-          && (!('participantIds' in data) || data.participantIds is list)
-          && (!('participantNames' in data) || data.participantNames is list);
+      function isCreator() {
+        return request.auth != null
+          && request.auth.uid == resource.data.get('creatorId', '');
       }
 
-      // 생성 시점에 정해지는 필드는 이후 수정 불가
-      function immutableFieldsUnchanged(before, after) {
-        return after.get('creatorId', null) == before.get('creatorId', null)
-          && after.get('creatorName', null) == before.get('creatorName', null)
-          && after.get('creator', null) == before.get('creator', null)
-          && after.get('createdAt', null) == before.get('createdAt', null);
+      allow get, list: if isParticipant() || isCreator();
+
+      // 생성·수정·삭제는 서버(Admin SDK)만. 클라이언트는 어떤 경우에도 불가.
+      allow create, update, delete: if false;
+
+      // 비밀번호 해시와 시도 횟수. 참여자에게도 절대 노출하지 않는다.
+      match /private/{docId} {
+        allow read, write: if false;
       }
+    }
 
-      // 읽기: request.auth가 항상 null이라 로그인 여부로 못 거름 —
-      // 지금 앱 동작(대시보드 목록, 상세 페이지)을 유지하려면 열어둬야 한다.
-      allow read: if true;
-
-      allow create: if hasRequiredFields(request.resource.data)
-        && hasValidV2Shape(request.resource.data);
-
-      allow update: if hasRequiredFields(request.resource.data)
-        && hasValidV2Shape(request.resource.data)
-        && immutableFieldsUnchanged(resource.data, request.resource.data);
-
-      // 삭제: 위 설명대로 "본인 확인"을 규칙에서 못 하므로 현재는 열어둠.
-      allow delete: if true;
+    // 그 외 모든 경로는 기본 차단.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
