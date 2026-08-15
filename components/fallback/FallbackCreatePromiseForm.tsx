@@ -25,12 +25,22 @@ const field =
   "placeholder:text-[var(--tk-faint)] focus-visible:border-[var(--tk-gold)] " +
   "focus-visible:ring-2 focus-visible:ring-[var(--tk-gold)]/25";
 
+/**
+ * 날짜·시간 입력은 값이 없을 때 브라우저가 "연도-월-일", "--:--" 같은
+ * 회색 글씨를 넣는다. 지저분해서 비어 있는 동안은 글자를 감춰 빈 칸으로 두고,
+ * 누르면 다시 보이게 한다. (달력·시계 아이콘은 그대로 남는다)
+ */
+function hideEmptyText(value: string, isFocused: boolean): React.CSSProperties {
+  return value === "" && !isFocused ? { color: "transparent" } : {};
+}
+
 export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = false }: Props) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [penalty, setPenalty] = useState("");
   const [password, setPassword] = useState("");
+  const [focused, setFocused] = useState<"date" | "time" | null>(null);
 
   return (
     <form
@@ -58,36 +68,36 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
           <Label htmlFor="date" className="tk-field-label text-[var(--tk-sub)]">
             날짜
           </Label>
-          <div className="tk-datetime">
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              data-empty={date === "" ? "true" : "false"}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              className={field}
-            />
-            <span className="tk-datetime-hint">날짜 선택</span>
-          </div>
+          <Input
+            id="date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            onFocus={() => setFocused("date")}
+            onBlur={() => setFocused(null)}
+            required
+            className={field}
+            // 비어 있을 때 뜨는 "연도-월-일" 회색 글씨를 감춘다.
+            // 누르면(포커스) 다시 보여야 입력하는 게 보인다.
+            style={hideEmptyText(date, focused === "date")}
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="time" className="tk-field-label text-[var(--tk-sub)]">
             시간
           </Label>
-          <div className="tk-datetime">
-            <Input
-              id="time"
-              type="time"
-              value={time}
-              data-empty={time === "" ? "true" : "false"}
-              onChange={(e) => setTime(e.target.value)}
-              required
-              className={field}
-            />
-            <span className="tk-datetime-hint">시간 선택</span>
-          </div>
+          <Input
+            id="time"
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            onFocus={() => setFocused("time")}
+            onBlur={() => setFocused(null)}
+            required
+            className={field}
+            style={hideEmptyText(time, focused === "time")}
+          />
         </div>
       </div>
 
