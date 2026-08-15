@@ -2,6 +2,8 @@
 import type { NextAuthOptions } from "next-auth";
 import KakaoProvider from "next-auth/providers/kakao";
 
+import { toCanonicalUid } from "@/lib/uid";
+
 export const authOptions: NextAuthOptions = {
   providers: [
     KakaoProvider({
@@ -15,15 +17,21 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, account }) {
       if (account?.provider === "kakao") {
-        (token as any).uid = `kakao:${account.providerAccountId}`;
-        // uid를 표준화해서 앞으로 provider가 늘어나도 안전
+        token.uid = toCanonicalUid(account.providerAccountId);
+      }
+      // 이 콜백이 생기기 전에 발급된 오래된 토큰은 uid가 없어서 token.sub(접두사
+      // 없는 raw ID)로 흘러간다. 그대로 두면 권한 검사가 전부 어긋나 해당
+      // 브라우저만 조용히 잠기므로, 여기서 표준 형식으로 back-fill 한다.
+      if (!token.uid) {
+        token.uid = toCanonicalUid(token.sub);
       }
       return token;
     },
 
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = (token as any).uid ?? token.sub;
+        // 항상 "kakao:<id>" 표준형만 내보낸다.
+        session.user.id = toCanonicalUid(token.uid ?? token.sub) ?? "";
       }
       return session;
     },
