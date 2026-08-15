@@ -16,8 +16,9 @@ import {
   getDocs,
   doc,
   getDoc,
-  deleteDoc,
 } from "firebase/firestore";
+
+import { deletePromise } from "@/lib/api-client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -180,11 +181,11 @@ export default function HomePage() {
 
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "promises", selectedId));
+      await deletePromise(selectedId);
       closeDetail();
     } catch (e) {
       console.error(e);
-      alert("약속 삭제 중 오류가 발생했습니다.");
+      alert(e instanceof Error ? e.message : "약속 삭제 중 오류가 발생했습니다.");
     } finally {
       setDeleting(false);
     }

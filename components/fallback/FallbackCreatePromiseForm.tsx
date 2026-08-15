@@ -95,7 +95,11 @@ export default function FallbackCreatePromiseForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={6}
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              6자 이상. 친구들이 이 비밀번호로 약속에 참여합니다.
+            </p>
           </div>
 
           <Button type="submit" className="w-full">

@@ -6,16 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { db } from "../../../lib/firebase";
-import {
-  Timestamp,
-  arrayUnion,
-  arrayRemove,
-  deleteDoc,
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { Timestamp, doc, getDoc } from "firebase/firestore";
 
 // ✅ NextAuth
 import { useSession } from "next-auth/react";
@@ -26,6 +17,13 @@ import {
   isPromiseParticipant,
   getParticipantNames,
 } from "../../../lib/promise-permissions";
+
+// 쓰기(참여/탈퇴/삭제)는 모두 서버 API를 거친다.
+import {
+  joinPromise as apiJoinPromise,
+  leavePromise as apiLeavePromise,
+  deletePromise as apiDeletePromise,
+} from "../../../lib/api-client";
 
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -86,7 +84,7 @@ export default function PromisePage() {
   // 접근 제어
   const [hasAccess, setHasAccess] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
-  const [passwordError, setPasswordError] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -219,111 +217,68 @@ export default function PromisePage() {
 
     setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, "promises", promiseId));
+      await apiDeletePromise(promiseId);
       window.location.href = "/";
     } catch (err) {
       console.error(err);
-      alert("약속 삭제 중 오류가 발생했습니다.");
+      alert(err instanceof Error ? err.message : "약속 삭제 중 오류가 발생했습니다.");
     } finally {
       setIsDeleting(false);
     }
   };
 
   // ========== 비밀번호 제출 ==========
+  // 비밀번호는 서버에서만 대조한다. 맞으면 그 자리에서 참여자로 등록된다
+  // (참여자만 약속을 읽을 수 있으므로 "참여 없이 열람"은 존재할 수 없다).
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promiseData) return;
+    if (!promiseId || isJoining) return;
 
-    if (passwordInput === promiseData.password) {
-      setPasswordError(false);
+    setIsJoining(true);
+    setPasswordError(null);
+    try {
+      await apiJoinPromise(promiseId, passwordInput);
+      setPasswordInput("");
+      await fetchPromiseData(promiseId);
       setHasAccess(true);
-    } else {
-      setPasswordError(true);
+    } catch (err) {
+      setPasswordError(
+        err instanceof Error ? err.message : "비밀번호가 올바르지 않습니다."
+      );
+    } finally {
+      setIsJoining(false);
     }
   };
 
   // ========== 참여하기 ==========
   const handleJoinPromise = async () => {
     if (!promiseData || !promiseId) return;
-    if (!currentUser || !currentUserId) return;
 
-    if (isPromiseParticipant(promiseData, currentUserId, currentUser)) {
+    if (isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined)) {
       alert("이미 이 약속에 참여 중입니다.");
       return;
     }
 
-    setIsJoining(true);
-    try {
-      await updateDoc(doc(db, "promises", promiseId), {
-        // v2: ID 기반
-        participantIds: arrayUnion(currentUserId),
-        participantNames: arrayUnion(currentUser),
-        // v1(레거시): 기존 화면 안 깨지게 유지
-        participants: arrayUnion(currentUser),
-        updatedAt: serverTimestamp(),
-      });
-
-      setPromiseData((prev) =>
-        prev
-          ? {
-              ...prev,
-              participantIds: [...(prev.participantIds ?? []), currentUserId],
-              participantNames: [...(prev.participantNames ?? []), currentUser],
-              participants: [...(prev.participants ?? []), currentUser],
-            }
-          : prev
-      );
-
-      alert("약속에 참여되었습니다.");
-      setHasAccess(true);
-    } catch (err) {
-      console.error(err);
-      alert("약속에 참여하는 중 오류가 발생했습니다.");
-    } finally {
-      setIsJoining(false);
-    }
+    // 참여에는 비밀번호가 필요하므로 비밀번호 화면으로 되돌린다.
+    setHasAccess(false);
   };
 
   // ========== 참여 취소 ==========
   const handleLeavePromise = async () => {
     if (!promiseData || !promiseId) return;
-    if (!currentUser || !currentUserId) return;
 
-    if (!isPromiseParticipant(promiseData, currentUserId, currentUser)) {
+    if (!isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined)) {
       alert("이 약속에 아직 참여하지 않았습니다.");
       return;
     }
 
     try {
-      // arrayRemove는 존재하지 않는 필드를 빈 배열로 만들어버리므로,
-      // 실제로 그 필드에 들어있을 때만 건드린다.
-      const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
-      if (promiseData.participantIds?.includes(currentUserId)) {
-        updates.participantIds = arrayRemove(currentUserId);
-      }
-      if (promiseData.participantNames?.includes(currentUser)) {
-        updates.participantNames = arrayRemove(currentUser);
-      }
-      if (promiseData.participants?.includes(currentUser)) {
-        updates.participants = arrayRemove(currentUser);
-      }
-      await updateDoc(doc(db, "promises", promiseId), updates);
-
-      setPromiseData((prev) =>
-        prev
-          ? {
-              ...prev,
-              participantIds: (prev.participantIds ?? []).filter((id) => id !== currentUserId),
-              participantNames: (prev.participantNames ?? []).filter((n) => n !== currentUser),
-              participants: (prev.participants ?? []).filter((p) => p !== currentUser),
-            }
-          : prev
-      );
-
+      await apiLeavePromise(promiseId);
       alert("약속 참여가 취소되었습니다.");
+      router.push("/");
     } catch (err) {
       console.error(err);
-      alert("참여 취소 중 오류가 발생했습니다.");
+      alert(err instanceof Error ? err.message : "참여 취소 중 오류가 발생했습니다.");
     }
   };
 
@@ -381,22 +336,28 @@ export default function PromisePage() {
                   value={passwordInput}
                   onChange={(e) => {
                     setPasswordInput(e.target.value);
-                    setPasswordError(false);
+                    setPasswordError(null);
                   }}
                   autoFocus
                   className="text-lg py-2"
+                  disabled={isJoining}
                 />
-                {passwordError && (
-                  <p className="text-sm text-destructive">비밀번호가 올바르지 않습니다</p>
-                )}
+                {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
               </div>
 
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" className="w-1/3" asChild>
                   <Link href="/">취소</Link>
                 </Button>
-                <Button type="submit" className="w-2/3">
-                  확인
+                <Button type="submit" className="w-2/3" disabled={isJoining}>
+                  {isJoining ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      확인 중...
+                    </>
+                  ) : (
+                    "확인하고 참여하기"
+                  )}
                 </Button>
               </div>
             </form>

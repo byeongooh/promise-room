@@ -9,9 +9,8 @@ import Link from "next/link";
 
 import LocationPicker, { PickedLocation } from "@/components/location-picker";
 
-// --- Firebase Firestore ---
-import { db } from "../../lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+// 약속 생성은 서버 API를 거친다 (비밀번호를 해시로 저장해야 하므로).
+import { createPromise } from "@/lib/api-client";
 
 // ✅ NextAuth
 import { useSession } from "next-auth/react";
@@ -45,24 +44,6 @@ const handleCreatePromise = async (promiseData: {
   penalty: string;
   password: string;
 }) => {
-  if (!db) {
-    setError("Firestore 데이터베이스에 연결할 수 없습니다. lib/firebase.ts 파일을 확인하세요.");
-    return;
-  }
-
-  // ✅ userId는 이제 필수 (안정 ID)
-  const userId = session?.user?.id;
-  if (!userId) {
-    setError("로그인 사용자 ID를 가져올 수 없습니다. (session.user.id)");
-    return;
-  }
-
-  // ✅ 표시 이름은 아직 필요 (UI용)
-  if (!currentUser) {
-    setError("카카오 로그인 정보(이름)를 가져올 수 없습니다.");
-    return;
-  }
-
   if (!pickedLocation) {
     setError("지도에서 장소를 선택해주세요.");
     return;
@@ -72,13 +53,11 @@ const handleCreatePromise = async (promiseData: {
   setError(null);
 
   try {
-    const payload = {
-      // ---------- 공통 ----------
+    const { id } = await createPromise({
       title: promiseData.title,
-      date: promiseData.date, // (2단계에서 Timestamp로 바꾸자)
+      date: promiseData.date,
       time: promiseData.time,
 
-      // 장소
       location: pickedLocation.text,
       locationLat: pickedLocation.lat,
       locationLng: pickedLocation.lng,
@@ -86,27 +65,12 @@ const handleCreatePromise = async (promiseData: {
 
       penalty: promiseData.penalty,
       password: promiseData.password,
+    });
 
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-
-      // ---------- v2: ID 기반 ----------
-      creatorId: userId,
-      creatorName: currentUser,
-      participantIds: [userId],
-      participantNames: [currentUser],
-      status: "active",
-
-      // ---------- v1(레거시): 기존 화면 안 깨지게 유지 ----------
-      creator: currentUser,
-      participants: [currentUser],
-    };
-
-    const docRef = await addDoc(collection(db, "promises"), payload);
-    router.push(`/promise/${docRef.id}`);
+    router.push(`/promise/${id}`);
   } catch (e) {
-    console.error("Error adding document: ", e);
-    setError("약속을 저장하는 중 오류가 발생했습니다.");
+    console.error("약속 생성 실패:", e);
+    setError(e instanceof Error ? e.message : "약속을 저장하는 중 오류가 발생했습니다.");
   } finally {
     setIsSubmitting(false);
   }
