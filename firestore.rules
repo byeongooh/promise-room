@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// ============================================================================
+// 중요: 이 규칙이 "할 수 없는 것"
+// ----------------------------------------------------------------------------
+// 이 앱은 NextAuth(카카오) 로그인만 쓰고, Firebase Auth에는 한 번도 로그인하지
+// 않는다 (signInWithCustomToken / onAuthStateChanged 등 어디에도 없음 —
+// lib/firebase.ts가 export하는 auth는 미사용). 그래서 브라우저에서 나가는
+// 모든 Firestore 요청은 request.auth == null 이다.
+//
+// 즉 `request.auth.uid == resource.data.creatorId` 같은 "본인만 삭제/수정"
+// 규칙은 지금 구조에서 쓸 수 없다 — 항상 false가 되어 앱의 모든
+// 생성/참여/삭제가 막힌다. (권한 판단은 지금 클라이언트 코드
+// lib/promise-permissions.ts에서만 이뤄지고 있고, 그게 이 앱의 실질적인
+// 유일한 방어선이다.)
+//
+// 아래 규칙은 그 한계 안에서 실현 가능한 것만 한다:
+//   1. 문서 모양(필수 필드/타입) 검증 — 깨진 문서가 써지는 것 방지
+//   2. creatorId / creatorName / createdAt 같은 "생성 시점에 정해지는" 필드가
+//      생성 이후 조작되는 것 방지
+//
+// 진짜 "본인만 삭제 가능"을 서버(Firestore)가 강제하게 하려면, NextAuth
+// 로그인 시 서버에서 admin.auth().createCustomToken(kakaoId)로 커스텀
+// 토큰을 발급하는 API 라우트를 추가하고, 클라이언트에서
+// signInWithCustomToken()으로 Firebase Auth에도 로그인시켜야 한다.
+// 그래야 request.auth.uid가 실제로 채워지고, 아래 규칙에
+// `request.auth.uid == resource.data.creatorId` 같은 조건을 의미 있게 넣을
+// 수 있다. 이건 이번 초안에 포함하지 않은 별도 작업이다.
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /promises/{promiseId} {
+
+      // 필수 필드 존재 + 타입 검증
+      function hasRequiredFields(data) {
+        return data.title is string && data.title.size() > 0
+          && data.date is string
+          && data.time is string
+          && data.location is string
+          && data.penalty is string
+          && data.password is string;
+      }
+
+      // v2(ID 기반) 필드가 있다면 타입이 맞는지 검증 (없어도 통과 — v1 문서 호환)
+      function hasValidV2Shape(data) {
+        return (!('creatorId' in data) || data.creatorId is string)
+          && (!('creatorName' in data) || data.creatorName is string)
+          && (!('participantIds' in data) || data.participantIds is list)
+          && (!('participantNames' in data) || data.participantNames is list);
+      }
+
+      // 생성 시점에 정해지는 필드는 이후 수정 불가
+      function immutableFieldsUnchanged(before, after) {
+        return after.get('creatorId', null) == before.get('creatorId', null)
+          && after.get('creatorName', null) == before.get('creatorName', null)
+          && after.get('creator', null) == before.get('creator', null)
+          && after.get('createdAt', null) == before.get('createdAt', null);
+      }
+
+      // 읽기: request.auth가 항상 null이라 로그인 여부로 못 거름 —
+      // 지금 앱 동작(대시보드 목록, 상세 페이지)을 유지하려면 열어둬야 한다.
+      allow read: if true;
+
+      allow create: if hasRequiredFields(request.resource.data)
+        && hasValidV2Shape(request.resource.data);
+
+      allow update: if hasRequiredFields(request.resource.data)
+        && hasValidV2Shape(request.resource.data)
+        && immutableFieldsUnchanged(resource.data, request.resource.data);
+
+      // 삭제: 위 설명대로 "본인 확인"을 규칙에서 못 하므로 현재는 열어둠.
+      allow delete: if true;
+    }
+  }
+}
