@@ -211,11 +211,27 @@ async function phase2() {
   for (const doc of snap.docs) {
     const d = doc.data();
     const updates = {};
+    const kept = [];
+
+    // 평문 비밀번호: 해시가 있으므로 항상 제거
     if ("password" in d) updates.password = FieldValue.delete();
-    if ("creator" in d) updates.creator = FieldValue.delete();
+
+    // 레거시 이름 목록: participantNames로 옮겨졌으므로 제거.
+    // 오히려 남겨두면 이름만 등록된 사람이 참여를 시도할 때 "이미 참여 중"으로
+    // 조기 종료돼 participantIds에 못 들어가는 문제가 생긴다.
     if ("participants" in d) updates.participants = FieldValue.delete();
 
-    console.log(`--- ${doc.id} "${d.title}" → 제거: ${Object.keys(updates).join(", ") || "없음"}`);
+    // creator(이름)는 creatorId가 확정된 문서에서만 제거한다.
+    // 아직 작성자 ID를 모르는 문서는 본인이 재참여할 때 이 이름으로 대조해
+    // 작성자 권한을 회수하므로, 지우면 영영 회수할 수 없다.
+    if ("creator" in d) {
+      if (d.creatorId) updates.creator = FieldValue.delete();
+      else kept.push("creator(작성자 권한 회수용으로 보존)");
+    }
+
+    const removing = Object.keys(updates).join(", ") || "없음";
+    console.log(`--- ${doc.id} "${d.title}"`);
+    console.log(`    제거: ${removing}${kept.length ? ` | 보존: ${kept.join(", ")}` : ""}`);
     if (APPLY && Object.keys(updates).length > 0) {
       updates.updatedAt = FieldValue.serverTimestamp();
       await doc.ref.update(updates);

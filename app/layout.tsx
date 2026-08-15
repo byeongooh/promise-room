@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
-import { UserProvider } from "@/lib/user-context"
 import Providers from "@/components/providers";
 import FirebaseAuthProvider from "@/components/firebase-auth-provider";
 
@@ -21,9 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans antialiased">
         <Providers>
-          <FirebaseAuthProvider>
-            <UserProvider>{children}</UserProvider>
-          </FirebaseAuthProvider>
+          <FirebaseAuthProvider>{children}</FirebaseAuthProvider>
         </Providers>
       </body>
     </html>

@@ -178,17 +178,17 @@ export async function joinPromise(
 
   await checkAndBumpAttempts(promiseId, caller.uid);
 
-  // 해시가 있으면 해시로, 아직 마이그레이션 전이면 평문으로 비교한다.
-  // (평문 폴백은 마이그레이션 2차에서 제거한다)
+  // 비밀번호는 해시로만 대조한다. 해시가 없는 문서는 참여시키지 않는다
+  // (평문 비교 폴백은 마이그레이션 완료와 함께 제거했다).
   const authSnap = await authRef(promiseId).get();
   const storedHash = authSnap.exists ? (authSnap.data()?.hash as string | undefined) : undefined;
 
-  let ok = false;
-  if (storedHash && isHashed(storedHash)) {
-    ok = await verifyPassword(storedHash, password);
-  } else if (typeof data.password === "string") {
-    ok = data.password === password;
+  if (!storedHash || !isHashed(storedHash)) {
+    console.error(`[promise-service] ${promiseId}: 비밀번호 해시 없음`);
+    throw new ApiError(500, "NO_PASSWORD_SET", "이 약속은 비밀번호가 설정되어 있지 않습니다.");
   }
+
+  const ok = await verifyPassword(storedHash, password);
 
   if (!ok) {
     await recordFailure(promiseId, caller.uid);
