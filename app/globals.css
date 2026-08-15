@@ -114,6 +114,41 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ---------------------------------------------------------------
+   티켓 디자인 토큰
+   약속을 입장권처럼 보여주는 화면에서 쓴다.
+   스텁(오른쪽 절취 부분)은 남은 날짜에 따라 색이 달라진다.
+   --------------------------------------------------------------- */
+:root {
+  --tk-ink: #16233f;        /* 티켓 잉크(네이비) */
+  --tk-paper: #ffffff;      /* 티켓 종이 */
+  --tk-ground: #e9ecf2;     /* 배경 */
+  --tk-line: #d3d9e6;       /* 절취선 */
+  --tk-sub: #5a6784;        /* 보조 텍스트 */
+  --tk-faint: #7c88a3;      /* 흐린 텍스트 */
+  --tk-gold: #f5b301;       /* 강조(버튼) */
+  --tk-hot-bg: #fff7e3;     /* 임박한 약속 스텁 배경 */
+  --tk-hot-ink: #b37400;
+  --tk-now-bg: #ffe9e2;     /* 오늘인 약속 스텁 배경 */
+  --tk-now-ink: #b8360f;
+  --tk-warn: #a2361f;       /* 벌칙 */
+}
+
+.dark {
+  --tk-ink: #e7ecf7;
+  --tk-paper: #1b2334;
+  --tk-ground: #10151f;
+  --tk-line: #33405a;
+  --tk-sub: #a3b0c9;
+  --tk-faint: #7f8da8;
+  --tk-gold: #f5b301;
+  --tk-hot-bg: #3a2f10;
+  --tk-hot-ink: #f3c969;
+  --tk-now-bg: #3d211a;
+  --tk-now-ink: #ffb59b;
+  --tk-warn: #ff9c82;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

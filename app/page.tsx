@@ -20,6 +20,13 @@ import {
 
 import { deletePromise } from "@/lib/api-client";
 import { useFirebaseAuth } from "@/components/firebase-auth-provider";
+import PromiseTicket from "@/components/promise-ticket";
+import {
+  displayLocation,
+  formatWhen,
+  getPromiseDate,
+  sortByWhen,
+} from "@/lib/promise-time";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -117,6 +124,22 @@ export default function HomePage() {
 
     return () => unsub();
   }, [firebaseReady, currentUserId, status]);
+
+  // 다가오는 약속은 임박한 순, 지난 약속은 최근 순으로 나눠 보여준다.
+  const { upcoming, past } = useMemo(() => {
+    const now = new Date();
+    const sorted = sortByWhen(promises, now);
+    return {
+      upcoming: sorted.filter((p) => {
+        const d = getPromiseDate(p);
+        return !d || d.getTime() >= now.getTime();
+      }),
+      past: sorted.filter((p) => {
+        const d = getPromiseDate(p);
+        return !!d && d.getTime() < now.getTime();
+      }),
+    };
+  }, [promises]);
 
   const displayCreator = (p: PromiseDoc) => {
     const name = p.creatorName ?? p.creator;
@@ -221,32 +244,29 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Promise Room</h1>
-            <p className="text-muted-foreground">친구들과 함께하는 약속 관리</p>
+      <div className="container mx-auto px-4 py-6 max-w-3xl sm:py-8">
+        {/* 헤더: 좁은 화면에서는 제목과 조작부를 위아래로 나눈다.
+            (예전에는 한 줄로 붙어 있어 이름이 세로로 쭈그러들었다) */}
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Promise Room</h1>
+            <p className="truncate text-sm text-muted-foreground">
+              {kakaoName ? `${kakaoName}님의 약속` : "친구들과 함께하는 약속 관리"}
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* ✅ 로그인 사용자 표시 */}
-            <div className="text-sm font-semibold px-3 py-2 border rounded-md bg-white">
-              {kakaoName ?? "사용자"}님
-            </div>
-
-            <Link href="/create">
-              <Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/create" className="flex-1 sm:flex-none">
+              <Button className="w-full">
                 <PlusCircle className="w-4 h-4 mr-2" />
-                새 약속 만들기
+                새 약속
               </Button>
             </Link>
-
-            {/* ✅ 로그아웃 버튼 1개만 */}
             <Button variant="outline" onClick={handleLogout}>
               로그아웃
             </Button>
           </div>
-        </div>
+        </header>
 
         {loading ? (
           <Card>
@@ -282,46 +302,23 @@ export default function HomePage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {promises.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => openDetail(p.id)}
-                className="text-left"
-              >
-                <Card className="hover:shadow-md transition">
-                  <CardHeader>
-                    <CardTitle className="text-2xl">
-                      {p.title || "(제목 없음)"}
-                    </CardTitle>
+          <div className="flex flex-col gap-3">
+            {upcoming.length > 0 && (
+              <p className="px-1 text-[11px] font-bold tracking-[0.12em] text-muted-foreground">
+                다가오는 약속
+              </p>
+            )}
+            {upcoming.map((p) => (
+              <PromiseTicket key={p.id} promise={p} onOpen={openDetail} />
+            ))}
 
-                    <div className="mt-1 flex items-center gap-2">
-                      <Badge className="rounded-full px-2 py-0.5 text-[11px]">
-                        만든 사람
-                      </Badge>
-                      <span className="inline-flex items-center gap-1 text-sm font-semibold">
-                        <UserIcon className="w-4 h-4" />
-                        {displayCreator(p)}
-                      </span>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-primary" />
-                      <span>{fmtDate(p.date ?? p.createdAt)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-primary" />
-                      <span>{p.time || "시간 미정"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary" />
-                      <span>{p.location || "장소 미정"}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </button>
+            {past.length > 0 && (
+              <p className="mt-4 px-1 text-[11px] font-bold tracking-[0.12em] text-muted-foreground">
+                지난 약속
+              </p>
+            )}
+            {past.map((p) => (
+              <PromiseTicket key={p.id} promise={p} onOpen={openDetail} />
             ))}
           </div>
         )}
@@ -356,15 +353,11 @@ export default function HomePage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-lg">
                   <CalendarDays className="w-5 h-5 text-primary" />
-                  <span>{fmtDate(detail.date ?? detail.createdAt)}</span>
-                </div>
-                <div className="flex items-center gap-3 text-lg">
-                  <Clock className="w-5 h-5 text-primary" />
-                  <span>{detail.time || "시간 미정"}</span>
+                  <span>{formatWhen(getPromiseDate(detail))}</span>
                 </div>
                 <div className="flex items-center gap-3 text-lg">
                   <MapPin className="w-5 h-5 text-primary" />
-                  <span>{detail.location || "장소 미정"}</span>
+                  <span>{displayLocation(detail.location)}</span>
                 </div>
                 {detail.penalty && (
                   <div className="text-sm text-muted-foreground">
