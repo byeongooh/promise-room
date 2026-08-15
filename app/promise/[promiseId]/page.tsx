@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { db } from "../../../lib/firebase";
-import { Timestamp, doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 
 // ✅ NextAuth
 import { useSession } from "next-auth/react";
@@ -27,6 +27,12 @@ import {
   type PromiseSummary,
 } from "../../../lib/api-client";
 import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
+import {
+  displayLocation,
+  formatWhen,
+  getCountdown,
+  getPromiseDate,
+} from "../../../lib/promise-time";
 
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -36,16 +42,12 @@ import {
   ArrowLeft,
   Bell,
   CalendarDays,
-  Clock,
   Loader2,
   Lock,
-  Map,
   MapPin,
   ShieldAlert,
   Trash2,
 } from "lucide-react";
-
-import ParticipantList from "../../../components/participant-list";
 
 // 카드/다이얼로그
 import {
@@ -322,12 +324,12 @@ export default function PromisePage() {
 
   if (!hasAccess || !promiseData) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <Card className="w-full max-w-md sm:max-w-lg rounded-2xl shadow-lg border">
+      <div className="min-h-screen bg-[var(--tk-ground)] flex items-center justify-center p-6">
+        <Card className="w-full max-w-md rounded-2xl border-0 bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5">
           <CardHeader className="text-center pb-2">
             <div className="flex items-center justify-center gap-2 mb-1">
-              <Lock className="w-6 h-6 text-primary" />
-              <CardTitle className="text-2xl">비밀번호 입력</CardTitle>
+              <Lock className="w-5 h-5 text-[var(--tk-gold)]" />
+              <CardTitle className="text-xl text-[var(--tk-ink)]">비밀번호 입력</CardTitle>
             </div>
             <CardDescription className="text-base">
               "{summary?.title ?? promiseData?.title}" 약속에 참여하려면 비밀번호가 필요합니다.
@@ -385,56 +387,50 @@ export default function PromisePage() {
   const displayCreatorName = promiseData.creatorName ?? promiseData.creator ?? "알 수 없음";
   const participantNames = getParticipantNames(promiseData);
 
-  // 날짜 표시 변환
-  let displayDate = "날짜 정보 없음";
-  if (promiseData.date) {
-    if (promiseData.date instanceof Timestamp) {
-      displayDate = promiseData.date.toDate().toLocaleDateString("ko-KR", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        weekday: "long",
-      });
-    } else if (typeof promiseData.date === "string") {
-      const dateObj = new Date(promiseData.date + "T00:00:00Z");
-      displayDate = !isNaN(dateObj.getTime())
-        ? dateObj.toLocaleDateString("ko-KR", {
-            timeZone: "Asia/Seoul",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            weekday: "long",
-          })
-        : promiseData.date;
-    }
-  }
+
+  const countdown = getCountdown(getPromiseDate(promiseData));
+  const stubTone =
+    countdown.tone === "now"
+      ? "bg-[var(--tk-now-bg)] text-[var(--tk-now-ink)]"
+      : countdown.tone === "soon"
+        ? "bg-[var(--tk-hot-bg)] text-[var(--tk-hot-ink)]"
+        : "bg-[var(--tk-paper)] text-[var(--tk-faint)]";
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" asChild>
-            <Link href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" /> 대시보드
-            </Link>
-          </Button>
+    <div className="min-h-screen bg-[var(--tk-ground)]">
+      <div className="container mx-auto max-w-lg px-4 py-5">
+        {/* 상단 바 */}
+        <div className="mb-3 flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
+          >
+            <ArrowLeft className="size-4" /> 대시보드
+          </Link>
 
           {isOwner && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" disabled={isDeleting}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isDeleting}
+                  className="border-[var(--tk-warn)]/40 text-[var(--tk-warn)] hover:bg-[var(--tk-warn)]/8 hover:text-[var(--tk-warn)]"
+                >
                   {isDeleting ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
                   ) : (
-                    <Trash2 className="w-4 h-4 mr-2" />
+                    <Trash2 className="w-4 h-4 mr-1.5" />
                   )}
-                  약속 삭제
+                  삭제
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>삭제 확인</AlertDialogTitle>
-                  <AlertDialogDescription>정말 삭제하시겠습니까?</AlertDialogDescription>
+                  <AlertDialogTitle>이 약속을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    참여자 모두에게서 사라지고 되돌릴 수 없습니다.
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>취소</AlertDialogCancel>
@@ -447,118 +443,132 @@ export default function PromisePage() {
           )}
         </div>
 
-        <Card className="mb-8 animate-fade-in">
-          <CardHeader>
-            <CardTitle className="text-3xl font-bold mb-2">{promiseData.title}</CardTitle>
-            <CardDescription>작성자: {displayCreatorName}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3 text-lg">
-              <CalendarDays className="w-5 h-5 text-primary" />
-              <span>{displayDate}</span>
-            </div>
-            <div className="flex items-center gap-3 text-lg">
-              <Clock className="w-5 h-5 text-primary" />
-              <span>{promiseData.time || "시간 미정"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-lg">
-              <MapPin className="w-5 h-5 text-primary" />
-              <span>{promiseData.location || "장소 미정"}</span>
-            </div>
-            <div className="flex items-center gap-3 text-lg">
-              <ShieldAlert className="w-5 h-5 text-destructive" />
-              <span>벌칙: {promiseData.penalty || "없음"}</span>
-            </div>
+        {/* 히어로 티켓 */}
+        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_6rem] overflow-hidden rounded-2xl bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5">
+          <div className="min-w-0 p-5">
+            <h1 className="text-[21px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+              {promiseData.title}
+            </h1>
+            <p className="mt-1 text-[12px] text-[var(--tk-faint)]">
+              만든 사람 · {displayCreatorName}
+            </p>
 
-            {!isParticipant ? (
-              <div className="pt-4">
-                <Button onClick={handleJoinPromise} disabled={isJoining} className="w-full">
-                  {isJoining ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      참여 중...
-                    </>
-                  ) : (
-                    "이 약속에 참여하기"
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="pt-4 flex gap-2">
-                <div className="flex-1 rounded-md bg-green-50 text-green-700 text-sm flex items-center justify-center py-2">
-                  ✅ 이 약속에 참여 중입니다.
-                </div>
-                <Button variant="outline" onClick={handleLeavePromise} className="whitespace-nowrap">
-                  참여 취소
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="animate-fade-in-delay">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Map className="w-5 h-5" /> 위치 공유
-              </CardTitle>
-              <CardDescription>약속 장소 지도</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div
-                id="kakao-map"
-                className="w-full h-48 rounded-md border bg-muted"
-                style={{ minHeight: "200px" }}
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                장소: {promiseData.location || "미정"}
+            <div className="mt-3 space-y-1 text-[13px] text-[var(--tk-sub)]">
+              <p className="flex items-center gap-2">
+                <CalendarDays className="size-4 shrink-0 opacity-70" />
+                {formatWhen(getPromiseDate(promiseData))}
               </p>
-            </CardContent>
-          </Card>
+              <p className="flex items-center gap-2">
+                <MapPin className="size-4 shrink-0 opacity-70" />
+                {displayLocation(promiseData.location)}
+              </p>
+            </div>
 
-          <Card className="animate-fade-in-delay-more">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5" /> 알림 설정
-              </CardTitle>
-              <CardDescription>알림 받기</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-                <Label htmlFor="alarm-10min" className="flex-1 cursor-pointer">
-                  10분 전 알림
-                </Label>
-                <Switch id="alarm-10min" checked={alarm10Min} onCheckedChange={setAlarm10Min} />
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-                <Label htmlFor="alarm-1hour" className="flex-1 cursor-pointer">
-                  1시간 전 알림
-                </Label>
-                <Switch id="alarm-1hour" checked={alarm1Hour} onCheckedChange={setAlarm1Hour} />
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">알림 UI 예시 (동작 안 함)</p>
-            </CardContent>
-          </Card>
+            {promiseData.penalty?.trim() ? (
+              <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[var(--tk-warn)]">
+                <ShieldAlert className="size-4 shrink-0" />
+                지각 시 · {promiseData.penalty}
+              </p>
+            ) : null}
+          </div>
+
+          <div
+            className={`flex flex-col items-center justify-center gap-1 border-l-2 border-dashed border-[var(--tk-line)] ${stubTone}`}
+          >
+            <span className="text-[24px] font-extrabold leading-none tracking-tight tabular-nums">
+              {countdown.badge}
+            </span>
+            <span className="text-[11px] font-bold opacity-80">{countdown.detail}</span>
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>참여 상태</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isParticipant ? (
-                <p className="text-green-600 font-semibold">✅ 이 약속에 참여 중입니다.</p>
-              ) : (
-                <p className="text-muted-foreground">
-                  아직 이 약속에 참여하지 않았습니다. 위쪽 버튼으로 참여하세요.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+        {/* 약속 장소 */}
+        <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
+          <p className="mb-2.5 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+            약속 장소
+          </p>
+          <div
+            id="kakao-map"
+            className="h-44 w-full overflow-hidden rounded-xl bg-[var(--tk-ground)]"
+          />
+          <p className="mt-2.5 text-[13px] font-medium text-[var(--tk-ink)]">
+            {displayLocation(promiseData.location)}
+          </p>
+        </section>
 
-          <ParticipantList participants={participantNames} />
-        </div>
+        {/* 참여자 */}
+        <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
+          <p className="mb-3 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+            참여자 {participantNames.length}명
+          </p>
+          {participantNames.length === 0 ? (
+            <p className="py-2 text-[13px] text-[var(--tk-faint)]">아직 참여자가 없습니다.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {participantNames.map((n, i) => (
+                <li key={`${n}-${i}`} className="flex items-center gap-2.5">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--tk-ground)] text-[12px] font-bold text-[var(--tk-ink)]">
+                    {n.trim().charAt(0) || "?"}
+                  </span>
+                  <span className="text-[13.5px] font-medium text-[var(--tk-ink)]">{n}</span>
+                  {n === displayCreatorName && (
+                    <span className="text-[11px] text-[var(--tk-faint)]">약속 생성자</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* 알림 (아직 동작하지 않음) */}
+        <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
+          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+            <Bell className="size-3.5" /> 알림
+          </p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-xl bg-[var(--tk-ground)] px-3.5 py-2.5">
+              <Label htmlFor="alarm-10min" className="cursor-pointer text-[13.5px]">
+                10분 전에 알려주기
+              </Label>
+              <Switch id="alarm-10min" checked={alarm10Min} onCheckedChange={setAlarm10Min} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-[var(--tk-ground)] px-3.5 py-2.5">
+              <Label htmlFor="alarm-1hour" className="cursor-pointer text-[13.5px]">
+                1시간 전에 알려주기
+              </Label>
+              <Switch id="alarm-1hour" checked={alarm1Hour} onCheckedChange={setAlarm1Hour} />
+            </div>
+          </div>
+          <p className="mt-2.5 text-[11.5px] text-[var(--tk-faint)]">
+            아직 실제로 알림이 오지는 않습니다. 앱으로 만들 때 연결됩니다.
+          </p>
+        </section>
+
+        {/* 참여 / 참여 취소 */}
+        {isParticipant ? (
+          <Button
+            variant="outline"
+            onClick={handleLeavePromise}
+            className="w-full border-[var(--tk-line)] bg-transparent py-6 text-[14px] font-bold text-[var(--tk-sub)]"
+          >
+            참여 취소
+          </Button>
+        ) : (
+          <Button
+            onClick={handleJoinPromise}
+            disabled={isJoining}
+            className="w-full bg-[var(--tk-gold)] py-6 text-[14px] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+          >
+            {isJoining ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                참여 중...
+              </>
+            ) : (
+              "이 약속에 참여하기"
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
