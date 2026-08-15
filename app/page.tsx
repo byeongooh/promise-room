@@ -44,18 +44,10 @@ import {
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-type PromiseDoc = {
-  id: string;
-  title: string;
-  date?: string | Timestamp;
-  time?: string;
-  location?: string;
-  creator?: string;
-  penalty?: string;
-  participants?: string[];
-  password?: string;
-  createdAt?: Timestamp;
-};
+import type { PromiseData } from "../lib/types";
+import { isPromiseOwner } from "../lib/promise-permissions";
+
+type PromiseDoc = PromiseData & { id: string };
 
 export default function HomePage() {
   const router = useRouter();
@@ -66,6 +58,8 @@ export default function HomePage() {
     const n = session?.user?.name?.trim();
     return n && n.length > 0 ? n : null;
   }, [session?.user?.name]);
+
+  const currentUserId = session?.user?.id;
 
   const [promises, setPromises] = useState<PromiseDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +92,7 @@ export default function HomePage() {
       (snap) => {
         const rows: PromiseDoc[] = snap.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as any),
+          ...(d.data() as PromiseData),
         }));
         setPromises(rows);
         setLoading(false);
@@ -108,7 +102,7 @@ export default function HomePage() {
         const snap2 = await getDocs(colRef);
         const rows2: PromiseDoc[] = snap2.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as any),
+          ...(d.data() as PromiseData),
         }));
         setPromises(rows2);
         setLoading(false);
@@ -118,8 +112,10 @@ export default function HomePage() {
     return () => unsub();
   }, [status]);
 
-  const displayCreator = (creator?: string) =>
-    creator && creator.trim() !== "" ? creator : "알 수 없음";
+  const displayCreator = (p: PromiseDoc) => {
+    const name = p.creatorName ?? p.creator;
+    return name && name.trim() !== "" ? name : "알 수 없음";
+  };
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -129,7 +125,7 @@ export default function HomePage() {
     try {
       const ref = doc(db, "promises", id);
       const snap = await getDoc(ref);
-      setDetail(snap.exists() ? { id: snap.id, ...(snap.data() as any) } : null);
+      setDetail(snap.exists() ? { id: snap.id, ...(snap.data() as PromiseData) } : null);
     } catch (e) {
       console.error(e);
       setDetail(null);
@@ -169,16 +165,15 @@ export default function HomePage() {
     }
   };
 
-  // ✅ 삭제 권한: 만든 사람(creator) === 카카오 이름
+  // ✅ 삭제 권한: 만든 사람 (ID 우선, 이름 폴백)
   const canDelete = useMemo(() => {
     if (!detail) return false;
-    if (!kakaoName) return false;
-    return detail.creator === kakaoName;
-  }, [detail, kakaoName]);
+    return isPromiseOwner(detail, currentUserId, kakaoName ?? undefined);
+  }, [detail, currentUserId, kakaoName]);
 
   const handleDelete = async () => {
     if (!selectedId) return;
-    if (!detail || !kakaoName || detail.creator !== kakaoName) {
+    if (!detail || !isPromiseOwner(detail, currentUserId, kakaoName ?? undefined)) {
       alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
       return;
     }
@@ -289,7 +284,7 @@ export default function HomePage() {
                       </Badge>
                       <span className="inline-flex items-center gap-1 text-sm font-semibold">
                         <UserIcon className="w-4 h-4" />
-                        {displayCreator(p.creator)}
+                        {displayCreator(p)}
                       </span>
                     </div>
                   </CardHeader>
@@ -336,7 +331,7 @@ export default function HomePage() {
                   </Badge>
                   <span className="inline-flex items-center gap-1 text-sm font-semibold">
                     <UserIcon className="w-4 h-4" />
-                    {displayCreator(detail.creator)}
+                    {displayCreator(detail)}
                   </span>
                 </div>
               </DialogHeader>

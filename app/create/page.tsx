@@ -51,7 +51,7 @@ const handleCreatePromise = async (promiseData: {
   }
 
   // ✅ userId는 이제 필수 (안정 ID)
-  const userId = (session?.user as any)?.id as string | undefined;
+  const userId = session?.user?.id;
   if (!userId) {
     setError("로그인 사용자 ID를 가져올 수 없습니다. (session.user.id)");
     return;

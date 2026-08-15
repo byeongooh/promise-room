@@ -14,10 +14,18 @@ import {
   doc,
   getDoc,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 // ✅ NextAuth
 import { useSession } from "next-auth/react";
+
+import type { PromiseData } from "../../../lib/types";
+import {
+  isPromiseOwner,
+  isPromiseParticipant,
+  getParticipantNames,
+} from "../../../lib/promise-permissions";
 
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -58,36 +66,13 @@ import {
   AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
 
-// ================= 타입 =================
-interface PromiseData {
-  id?: string;
-  title: string;
-  date: string | Timestamp;
-  time: string;
-  location: string;
-  penalty: string;
-
-  // 구버전: creator(이름)
-  creator: string;
-
-  // ✅ v2 대비: creatorId (없을 수도 있으니 optional)
-  creatorId?: string;
-
-  participants: string[];
-  password: string;
-  createdAt?: Timestamp;
-  locationLat?: number;
-  locationLng?: number;
-  locationPlaceId?: string | null;
-}
-
 export default function PromisePage() {
   const router = useRouter();
 
   // ✅ status 꼭 같이 꺼내야 함
   const { data: session, status } = useSession();
 
-  const currentUserId = (session?.user as any)?.id as string | undefined;
+  const currentUserId = session?.user?.id;
 
   // ✅ 현재 사용자 = 카카오 이름 (이걸로만 판단)
   const currentUser = useMemo(() => {
@@ -146,18 +131,14 @@ export default function PromisePage() {
       }
 
       const data = snap.data() as PromiseData;
-      const safeParticipants = Array.isArray(data.participants) ? data.participants : [];
-      const merged: PromiseData = { ...data, id: snap.id, participants: safeParticipants };
+      const merged: PromiseData = { ...data, id: snap.id };
       setPromiseData(merged);
 
-      // ✅ 로그인된 사용자가 방장/참여자면 비번 없이 접근
-      if (currentUser) {
-        const isCreator = merged.creator === currentUser;
-        const isParticipant = safeParticipants.includes(currentUser);
-        setHasAccess(isCreator || isParticipant);
-      } else {
-        setHasAccess(false);
-      }
+      // ✅ 로그인된 사용자가 방장/참여자면 비번 없이 접근 (ID 우선, 이름 폴백)
+      setHasAccess(
+        isPromiseOwner(merged, currentUserId, currentUser ?? undefined) ||
+          isPromiseParticipant(merged, currentUserId, currentUser ?? undefined)
+      );
     } catch (e) {
       console.error(e);
       setPromiseData(null);
@@ -225,25 +206,13 @@ export default function PromisePage() {
     });
   }, [hasAccess, promiseData?.location, (promiseData as any)?.locationLat, (promiseData as any)?.locationLng]);
 
-  // ✅ 삭제 (handleDelete는 하나만!)
+  // ✅ 삭제
   const handleDelete = async () => {
-    console.log("DELETE HANDLER VERSION: 2026-02-16 v1");
-
     if (!promiseData || !promiseId) return;
 
-    // v2 creatorId 있으면 id로 검사
-    if (promiseData.creatorId) {
-      if (!currentUserId || promiseData.creatorId !== currentUserId) {
-        alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
-        return;
-      }
-    } else {
-      // 구버전: creator 이름 비교
-      if (!currentUser) return;
-      if (promiseData.creator !== currentUser) {
-        alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
-        return;
-      }
+    if (!isPromiseOwner(promiseData, currentUserId, currentUser ?? undefined)) {
+      alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+      return;
     }
 
     if (isDeleting) return;
@@ -276,9 +245,9 @@ export default function PromisePage() {
   // ========== 참여하기 ==========
   const handleJoinPromise = async () => {
     if (!promiseData || !promiseId) return;
-    if (!currentUser) return;
+    if (!currentUser || !currentUserId) return;
 
-    if (promiseData.participants.includes(currentUser)) {
+    if (isPromiseParticipant(promiseData, currentUserId, currentUser)) {
       alert("이미 이 약속에 참여 중입니다.");
       return;
     }
@@ -286,11 +255,23 @@ export default function PromisePage() {
     setIsJoining(true);
     try {
       await updateDoc(doc(db, "promises", promiseId), {
+        // v2: ID 기반
+        participantIds: arrayUnion(currentUserId),
+        participantNames: arrayUnion(currentUser),
+        // v1(레거시): 기존 화면 안 깨지게 유지
         participants: arrayUnion(currentUser),
+        updatedAt: serverTimestamp(),
       });
 
       setPromiseData((prev) =>
-        prev ? { ...prev, participants: [...prev.participants, currentUser] } : prev
+        prev
+          ? {
+              ...prev,
+              participantIds: [...(prev.participantIds ?? []), currentUserId],
+              participantNames: [...(prev.participantNames ?? []), currentUser],
+              participants: [...(prev.participants ?? []), currentUser],
+            }
+          : prev
       );
 
       alert("약속에 참여되었습니다.");
@@ -306,21 +287,36 @@ export default function PromisePage() {
   // ========== 참여 취소 ==========
   const handleLeavePromise = async () => {
     if (!promiseData || !promiseId) return;
-    if (!currentUser) return;
+    if (!currentUser || !currentUserId) return;
 
-    if (!promiseData.participants.includes(currentUser)) {
+    if (!isPromiseParticipant(promiseData, currentUserId, currentUser)) {
       alert("이 약속에 아직 참여하지 않았습니다.");
       return;
     }
 
     try {
-      await updateDoc(doc(db, "promises", promiseId), {
-        participants: arrayRemove(currentUser),
-      });
+      // arrayRemove는 존재하지 않는 필드를 빈 배열로 만들어버리므로,
+      // 실제로 그 필드에 들어있을 때만 건드린다.
+      const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+      if (promiseData.participantIds?.includes(currentUserId)) {
+        updates.participantIds = arrayRemove(currentUserId);
+      }
+      if (promiseData.participantNames?.includes(currentUser)) {
+        updates.participantNames = arrayRemove(currentUser);
+      }
+      if (promiseData.participants?.includes(currentUser)) {
+        updates.participants = arrayRemove(currentUser);
+      }
+      await updateDoc(doc(db, "promises", promiseId), updates);
 
       setPromiseData((prev) =>
         prev
-          ? { ...prev, participants: prev.participants.filter((p) => p !== currentUser) }
+          ? {
+              ...prev,
+              participantIds: (prev.participantIds ?? []).filter((id) => id !== currentUserId),
+              participantNames: (prev.participantNames ?? []).filter((n) => n !== currentUser),
+              participants: (prev.participants ?? []).filter((p) => p !== currentUser),
+            }
           : prev
       );
 
@@ -414,8 +410,10 @@ export default function PromisePage() {
     );
   }
 
-  const isOwner = promiseData.creator === currentUser;
-  const isParticipant = promiseData.participants.includes(currentUser || "");
+  const isOwner = isPromiseOwner(promiseData, currentUserId, currentUser ?? undefined);
+  const isParticipant = isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined);
+  const displayCreatorName = promiseData.creatorName ?? promiseData.creator ?? "알 수 없음";
+  const participantNames = getParticipantNames(promiseData);
 
   // 날짜 표시 변환
   let displayDate = "날짜 정보 없음";
@@ -482,7 +480,7 @@ export default function PromisePage() {
         <Card className="mb-8 animate-fade-in">
           <CardHeader>
             <CardTitle className="text-3xl font-bold mb-2">{promiseData.title}</CardTitle>
-            <CardDescription>작성자: {promiseData.creator}</CardDescription>
+            <CardDescription>작성자: {displayCreatorName}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3 text-lg">
@@ -589,7 +587,7 @@ export default function PromisePage() {
             </CardContent>
           </Card>
 
-          <ParticipantList participants={promiseData.participants} />
+          <ParticipantList participants={participantNames} />
         </div>
       </div>
     </div>
