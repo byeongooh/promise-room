@@ -400,10 +400,11 @@ export default function PromisePage() {
     <div className="min-h-screen bg-[var(--tk-ground)]">
       <div className="container mx-auto max-w-lg px-4 py-5">
         {/* 상단 바 */}
-        <div className="mb-3 flex items-center justify-between">
+        {/* 손가락으로 누르는 화면이라 항목 높이를 44px 이상으로 잡는다 */}
+        <div className="mb-2 flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
+            className="-ml-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
           >
             <ArrowLeft className="size-4" /> 대시보드
           </Link>
@@ -413,9 +414,8 @@ export default function PromisePage() {
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  size="sm"
                   disabled={isDeleting}
-                  className="border-[var(--tk-warn)]/40 text-[var(--tk-warn)] hover:bg-[var(--tk-warn)]/8 hover:text-[var(--tk-warn)]"
+                  className="h-11 border-[var(--tk-warn)]/40 text-[var(--tk-warn)] hover:bg-[var(--tk-warn)]/8 hover:text-[var(--tk-warn)]"
                 >
                   {isDeleting ? (
                     <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
@@ -446,7 +446,8 @@ export default function PromisePage() {
         {/* 히어로 티켓 */}
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_6rem] overflow-hidden rounded-2xl bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5">
           <div className="min-w-0 p-5">
-            <h1 className="text-[21px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+            {/* break-keep: 한글이 단어 중간에서 잘리지 않게 한다 */}
+            <h1 className="text-[21px] font-extrabold leading-tight tracking-tight text-balance break-keep text-[var(--tk-ink)]">
               {promiseData.title}
             </h1>
             <p className="mt-1 text-[12px] text-[var(--tk-faint)]">

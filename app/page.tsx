@@ -259,13 +259,14 @@ export default function HomePage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <Link href="/create" className="flex-1 sm:flex-none">
-              <Button className="w-full bg-[var(--tk-gold)] text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
-                <PlusCircle className="w-4 h-4 mr-2" />
+            {/* 손가락으로 누르는 화면이라 높이를 44px 이상으로 잡는다 */}
+            <Link href="/create">
+              <Button className="h-11 bg-[var(--tk-gold)] px-4 text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
+                <PlusCircle className="w-4 h-4 mr-1.5" />
                 새 약속
               </Button>
             </Link>
-            <Button variant="outline" onClick={handleLogout}>
+            <Button variant="outline" onClick={handleLogout} className="h-11 px-3.5">
               로그아웃
             </Button>
           </div>
@@ -343,7 +344,7 @@ export default function HomePage() {
               <DialogHeader className="space-y-0">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <DialogTitle className="text-[21px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+                    <DialogTitle className="text-[21px] font-extrabold leading-tight tracking-tight break-keep text-[var(--tk-ink)]">
                       {detail.title}
                     </DialogTitle>
                     <p className="mt-1 text-[12.5px] text-[var(--tk-faint)]">
