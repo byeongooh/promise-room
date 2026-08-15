@@ -1,8 +1,17 @@
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
+import { Archivo } from "next/font/google"
 import "./globals.css"
 import Providers from "@/components/providers";
 import FirebaseAuthProvider from "@/components/firebase-auth-provider";
+
+// 워드마크 전용 서체. 본문은 계속 시스템 한글 폰트를 쓴다.
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["900"],
+  variable: "--font-archivo",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Promise Room - 약속 관리",
@@ -11,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={archivo.variable}>
       <head>
         <script
           defer

@@ -4,6 +4,8 @@ import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { CalendarDays, MapPin, Loader2 } from "lucide-react";
 
+import Wordmark from "@/components/wordmark";
+
 // 로그인 화면도 "입장권" 은유를 따른다.
 // 아직 이름이 비어 있는 티켓 한 장을 보여주고, 로그인하면 내 이름이 채워지는 그림.
 
@@ -14,10 +16,10 @@ export default function LoginPage() {
     <main className="grid min-h-screen place-items-center bg-[var(--tk-ground)] px-5 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-7 text-center">
-          <h1 className="text-[26px] font-extrabold tracking-tight text-[var(--tk-ink)]">
-            Promise Room
+          <h1>
+            <Wordmark size="lg" />
           </h1>
-          <p className="mt-1 text-[13.5px] text-[var(--tk-sub)]">
+          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">
             친구들과의 약속을 한 장의 티켓으로
           </p>
         </div>

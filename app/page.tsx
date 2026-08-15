@@ -1,7 +1,5 @@
 "use client";
 
-import { Badge } from "../components/ui/badge";
-import { User as UserIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -21,21 +19,23 @@ import {
 import { deletePromise } from "@/lib/api-client";
 import { useFirebaseAuth } from "@/components/firebase-auth-provider";
 import PromiseTicket from "@/components/promise-ticket";
+import Wordmark from "@/components/wordmark";
 import {
   displayLocation,
   formatWhen,
+  getCountdown,
   getPromiseDate,
   sortByWhen,
 } from "@/lib/promise-time";
+import { getParticipantNames } from "@/lib/promise-permissions";
 
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
   CalendarDays,
-  Clock,
   MapPin,
   PlusCircle,
-  ArrowLeft,
+  TriangleAlert,
   Trash2,
   Loader2,
   ExternalLink,
@@ -249,15 +249,18 @@ export default function HomePage() {
             (예전에는 한 줄로 붙어 있어 이름이 세로로 쭈그러들었다) */}
         <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Promise Room</h1>
-            <p className="truncate text-sm text-muted-foreground">
+            <h1>
+              <Wordmark size="md" className="sm:hidden" />
+              <Wordmark size="lg" className="max-sm:hidden" />
+            </h1>
+            <p className="mt-1.5 truncate text-sm text-[var(--tk-sub)]">
               {kakaoName ? `${kakaoName}님의 약속` : "친구들과 함께하는 약속 관리"}
             </p>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
             <Link href="/create" className="flex-1 sm:flex-none">
-              <Button className="w-full">
+              <Button className="w-full bg-[var(--tk-gold)] text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
                 <PlusCircle className="w-4 h-4 mr-2" />
                 새 약속
               </Button>
@@ -336,64 +339,109 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-2xl">{detail.title}</DialogTitle>
-
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge className="rounded-full px-2 py-0.5 text-[11px]">
-                    만든 사람
-                  </Badge>
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold">
-                    <UserIcon className="w-4 h-4" />
-                    {displayCreator(detail)}
-                  </span>
+              {/* 티켓 상단부: 제목 + 남은 시간 스텁 */}
+              <DialogHeader className="space-y-0">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <DialogTitle className="text-[21px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+                      {detail.title}
+                    </DialogTitle>
+                    <p className="mt-1 text-[12.5px] text-[var(--tk-faint)]">
+                      만든 사람 · {displayCreator(detail)}
+                    </p>
+                  </div>
+                  {(() => {
+                    const c = getCountdown(getPromiseDate(detail));
+                    const tone =
+                      c.tone === "now"
+                        ? "bg-[var(--tk-now-bg)] text-[var(--tk-now-ink)]"
+                        : c.tone === "soon"
+                          ? "bg-[var(--tk-hot-bg)] text-[var(--tk-hot-ink)]"
+                          : "bg-[var(--tk-ground)] text-[var(--tk-faint)]";
+                    return (
+                      <div
+                        className={`shrink-0 rounded-lg px-3 py-2 text-center leading-none ${tone}`}
+                      >
+                        <div className="text-[18px] font-extrabold tracking-tight tabular-nums">
+                          {c.badge}
+                        </div>
+                        <div className="mt-1 text-[10px] font-bold opacity-80">{c.detail}</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </DialogHeader>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-lg">
-                  <CalendarDays className="w-5 h-5 text-primary" />
+              {/* 절취선 */}
+              <div className="border-t-2 border-dashed border-[var(--tk-line)]" />
+
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2.5 text-[14.5px] text-[var(--tk-sub)]">
+                  <CalendarDays className="size-4 shrink-0 opacity-70" />
                   <span>{formatWhen(getPromiseDate(detail))}</span>
                 </div>
-                <div className="flex items-center gap-3 text-lg">
-                  <MapPin className="w-5 h-5 text-primary" />
+                <div className="flex items-center gap-2.5 text-[14.5px] text-[var(--tk-sub)]">
+                  <MapPin className="size-4 shrink-0 opacity-70" />
                   <span>{displayLocation(detail.location)}</span>
                 </div>
-                {detail.penalty && (
-                  <div className="text-sm text-muted-foreground">
-                    벌칙: {detail.penalty}
+                {detail.penalty?.trim() ? (
+                  <div className="flex items-center gap-2.5 text-[13px] text-[var(--tk-warn)]">
+                    <TriangleAlert className="size-4 shrink-0" />
+                    <span>지각 시 · {detail.penalty}</span>
+                  </div>
+                ) : null}
+
+                {getParticipantNames(detail).length > 0 && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex">
+                      {getParticipantNames(detail)
+                        .slice(0, 5)
+                        .map((n, i) => (
+                          <span
+                            key={`${n}-${i}`}
+                            title={n}
+                            className="-mr-1.5 grid size-6 place-items-center rounded-full border-[1.5px] border-[var(--tk-paper)] bg-[var(--tk-ground)] text-[11px] font-bold text-[var(--tk-ink)]"
+                          >
+                            {n.trim().charAt(0) || "?"}
+                          </span>
+                        ))}
+                    </div>
+                    <span className="ml-2.5 text-[12px] text-[var(--tk-faint)]">
+                      {getParticipantNames(detail).length}명 참여
+                    </span>
                   </div>
                 )}
               </div>
 
-              <DialogFooter className="mt-6 flex items-center justify-between">
-                <Button variant="ghost" asChild>
+              <DialogFooter className="mt-4 gap-2 sm:justify-between">
+                <Button
+                  asChild
+                  className="bg-[var(--tk-gold)] text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+                >
                   <Link href={`/promise/${detail.id}`}>
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    페이지로 열기
+                    자세히 보기
                   </Link>
                 </Button>
 
                 <div className="flex gap-2">
                   <DialogClose asChild>
-                    <Button variant="outline">
-                      <ArrowLeft className="w-4 h-4 mr-2" />
-                      닫기
-                    </Button>
+                    <Button variant="outline">닫기</Button>
                   </DialogClose>
 
                   {canDelete && (
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       onClick={handleDelete}
                       disabled={deleting}
+                      className="border-[var(--tk-warn)]/40 text-[var(--tk-warn)] hover:bg-[var(--tk-warn)]/8 hover:text-[var(--tk-warn)]"
                     >
                       {deleting ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4 mr-2" />
                       )}
-                      약속 삭제
+                      삭제
                     </Button>
                   )}
                 </div>
