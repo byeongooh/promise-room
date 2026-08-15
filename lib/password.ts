@@ -30,8 +30,9 @@ const p = 1;
 const KEY_LEN = 32;
 const SALT_LEN = 16;
 
-/** 새로 만드는 약속 비밀번호의 최소 길이. */
-export const MIN_PASSWORD_LENGTH = 6;
+/** 새로 만드는 약속 비밀번호의 최소 길이.
+ *  친구끼리 구두로 주고받는 값이라 짧게 잡되, 시도 제한(10분 10회)으로 보완한다. */
+export const MIN_PASSWORD_LENGTH = 4;
 
 async function derive(password: string, salt: Buffer): Promise<Buffer> {
   // maxmem 기본값은 N=16384에 부족해서 명시적으로 올려준다.

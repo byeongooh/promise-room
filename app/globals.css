@@ -232,6 +232,42 @@
     line-height: 1.4;
     font-weight: 700;
   }
+
+  /* ---- 날짜·시간 입력 ----
+     폰에서는 누르면 iOS/안드로이드의 기본 휠 피커가 뜬다. 그게 가장 익숙하고
+     편하므로 네이티브 입력을 그대로 쓰되, 비어 있을 때 뜨는 "연도-월-일",
+     "--:--" 같은 회색 글씨만 감추고 우리 문구로 대체한다. */
+  .tk-datetime {
+    position: relative;
+  }
+  .tk-datetime input::-webkit-datetime-edit {
+    color: var(--tk-ink);
+  }
+  /* 값이 없을 때: 기본 문구를 감추고 아래 span을 보여준다 */
+  .tk-datetime input[data-empty="true"]::-webkit-datetime-edit {
+    color: transparent;
+  }
+  .tk-datetime input[data-empty="true"] + .tk-datetime-hint {
+    opacity: 1;
+  }
+  .tk-datetime-hint {
+    position: absolute;
+    left: 0.875rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    opacity: 0;
+    color: var(--tk-faint);
+    font-size: 0.8125rem;
+  }
+  /* 달력·시계 아이콘을 팔레트에 맞춘다 */
+  .tk-datetime input::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
+    cursor: pointer;
+  }
+  .tk-datetime input::-webkit-calendar-picker-indicator:hover {
+    opacity: 0.8;
+  }
 }
 
 @layer base {

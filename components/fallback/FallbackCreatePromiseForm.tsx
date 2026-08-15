@@ -21,8 +21,9 @@ interface Props {
 }
 
 const field =
-  "h-11 rounded-xl border-[var(--tk-line)] bg-[var(--tk-paper)] text-[var(--tk-ink)] placeholder:text-[var(--tk-faint)]";
-const labelCls = "text-[12.5px] font-bold text-[var(--tk-sub)]";
+  "h-11 rounded-xl border-[var(--tk-line)] bg-[var(--tk-paper)] text-[var(--tk-ink)] " +
+  "placeholder:text-[var(--tk-faint)] focus-visible:border-[var(--tk-gold)] " +
+  "focus-visible:ring-2 focus-visible:ring-[var(--tk-gold)]/25";
 
 export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = false }: Props) {
   const [title, setTitle] = useState("");
@@ -40,14 +41,13 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
       className="space-y-4"
     >
       <div className="space-y-1.5">
-        <Label htmlFor="title" className={labelCls}>
+        <Label htmlFor="title" className="tk-field-label text-[var(--tk-sub)]">
           약속명
         </Label>
         <Input
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="예) 아일릿 콘서트 보러가기"
           required
           className={field}
         />
@@ -55,48 +55,56 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="date" className={labelCls}>
+          <Label htmlFor="date" className="tk-field-label text-[var(--tk-sub)]">
             날짜
           </Label>
-          <Input
-            id="date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-            className={field}
-          />
+          <div className="tk-datetime">
+            <Input
+              id="date"
+              type="date"
+              value={date}
+              data-empty={date === "" ? "true" : "false"}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              className={field}
+            />
+            <span className="tk-datetime-hint">날짜 선택</span>
+          </div>
         </div>
+
         <div className="space-y-1.5">
-          <Label htmlFor="time" className={labelCls}>
+          <Label htmlFor="time" className="tk-field-label text-[var(--tk-sub)]">
             시간
           </Label>
-          <Input
-            id="time"
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            required
-            className={field}
-          />
+          <div className="tk-datetime">
+            <Input
+              id="time"
+              type="time"
+              value={time}
+              data-empty={time === "" ? "true" : "false"}
+              onChange={(e) => setTime(e.target.value)}
+              required
+              className={field}
+            />
+            <span className="tk-datetime-hint">시간 선택</span>
+          </div>
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="penalty" className={labelCls}>
-          지각 벌칙 <span className="font-normal text-[var(--tk-faint)]">(선택)</span>
+        <Label htmlFor="penalty" className="tk-field-label text-[var(--tk-sub)]">
+          지각 벌칙 <span className="font-normal text-[var(--tk-faint)]">선택</span>
         </Label>
         <Input
           id="penalty"
           value={penalty}
           onChange={(e) => setPenalty(e.target.value)}
-          placeholder="예) 늦으면 커피 사기"
           className={field}
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="password" className={labelCls}>
+        <Label htmlFor="password" className="tk-field-label text-[var(--tk-sub)]">
           비밀번호
         </Label>
         <Input
@@ -105,12 +113,11 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          minLength={6}
-          placeholder="6자 이상"
+          minLength={4}
           className={field}
         />
-        <p className="text-[11.5px] text-[var(--tk-faint)]">
-          친구들이 이 비밀번호로 약속에 참여합니다. 링크와 함께 알려주세요.
+        <p className="tk-caption text-[var(--tk-faint)]">
+          4자 이상. 친구들이 이 비밀번호로 참여합니다.
         </p>
       </div>
 
