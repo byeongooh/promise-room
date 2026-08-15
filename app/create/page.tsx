@@ -106,7 +106,7 @@ const handleCreatePromise = async (promiseData: {
 
         {/* 1단계 — 장소 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-3 flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+          <p className="mb-3 flex items-center gap-2 tk-label text-[var(--tk-faint)]">
             <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
               1
             </span>
@@ -136,7 +136,7 @@ const handleCreatePromise = async (promiseData: {
 
         {/* 2단계 — 약속 정보 */}
         <section className="rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-3 flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+          <p className="mb-3 flex items-center gap-2 tk-label text-[var(--tk-faint)]">
             <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
               2
             </span>

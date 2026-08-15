@@ -149,11 +149,98 @@
   --tk-warn: #ff9c82;
 }
 
+/* ---------------------------------------------------------------
+   타입 스케일
+   크기를 화면마다 즉흥적으로 정하지 않고 여기서만 정한다.
+   한글은 라틴 문자보다 글자틀이 커 보여서 같은 px에서도 더 크게 읽힌다.
+   그래서 본문은 살짝 작게, 행간은 넉넉하게(1.5 안팎) 잡는다.
+   --------------------------------------------------------------- */
+@layer components {
+  /* 화면 제목 */
+  .tk-display {
+    font-size: 1.375rem;      /* 22px */
+    line-height: 1.3;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    word-break: keep-all;     /* 한글이 단어 중간에서 안 잘리게 */
+    text-wrap: balance;
+  }
+  @media (min-width: 640px) {
+    .tk-display { font-size: 1.625rem; }  /* 26px */
+  }
+
+  /* 카드·티켓 제목 */
+  .tk-title {
+    font-size: 1rem;          /* 16px */
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    word-break: keep-all;
+  }
+  @media (min-width: 640px) {
+    .tk-title { font-size: 1.0625rem; }   /* 17px */
+  }
+
+  /* 날짜·장소 같은 한 줄 정보 */
+  .tk-meta {
+    font-size: 0.8125rem;     /* 13px */
+    line-height: 1.5;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;  /* 날짜 숫자 폭을 맞춰 줄이 흔들리지 않게 */
+  }
+
+  /* 벌칙 등 부가 한 줄 */
+  .tk-note {
+    font-size: 0.75rem;       /* 12px */
+    line-height: 1.5;
+    font-weight: 400;
+    word-break: keep-all;
+  }
+
+  /* 참여 인원 등 아주 작은 보조 텍스트 */
+  .tk-caption {
+    font-size: 0.75rem;       /* 12px */
+    line-height: 1.4;
+    font-weight: 400;
+  }
+
+  /* 섹션 라벨 — 자간을 벌려 제목과 구분되게 */
+  .tk-label {
+    font-size: 0.6875rem;     /* 11px */
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+  }
+
+  /* 스텁의 D-day 숫자 */
+  .tk-dday {
+    font-size: 1.25rem;       /* 20px */
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .tk-dday-sub {
+    font-size: 0.625rem;      /* 10px */
+    line-height: 1.3;
+    font-weight: 700;
+  }
+
+  /* 입력 라벨 */
+  .tk-field-label {
+    font-size: 0.8125rem;     /* 13px */
+    line-height: 1.4;
+    font-weight: 700;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    /* 한글에서 자간이 벌어져 보이는 걸 막는다 */
+    letter-spacing: -0.005em;
   }
 }

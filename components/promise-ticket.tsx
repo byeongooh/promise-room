@@ -65,44 +65,44 @@ export default function PromiseTicket({
         focus-visible:outline-[var(--tk-ink)] ${isPast ? "opacity-65" : ""}`}
     >
       {/* 티켓 본문 */}
-      <div className="min-w-0 p-4">
-        <h3 className="truncate text-[15.5px] font-bold tracking-tight text-[var(--tk-ink)]">
+      <div className="min-w-0 p-4 sm:p-[18px]">
+        <h3 className="tk-title truncate text-[var(--tk-ink)]">
           {promise.title || "(제목 없음)"}
         </h3>
 
-        <div className="mt-2 space-y-1 text-[12.5px] text-[var(--tk-sub)]">
-          <p className="flex items-center gap-1.5">
-            <CalendarDays className="size-3.5 shrink-0 opacity-70" />
+        <div className="mt-2 space-y-0.5 text-[var(--tk-sub)]">
+          <p className="tk-meta flex items-center gap-1.5">
+            <CalendarDays className="size-3.5 shrink-0 opacity-60" />
             <span className="truncate">{formatWhen(when)}</span>
           </p>
-          <p className="flex items-center gap-1.5">
-            <MapPin className="size-3.5 shrink-0 opacity-70" />
+          <p className="tk-meta flex items-center gap-1.5">
+            <MapPin className="size-3.5 shrink-0 opacity-60" />
             <span className="truncate">{displayLocation(promise.location)}</span>
           </p>
         </div>
 
         {promise.penalty?.trim() ? (
-          <p className="mt-2 flex items-center gap-1.5 border-t border-dashed border-[var(--tk-line)]/70 pt-2 text-[11.5px] text-[var(--tk-warn)]">
-            <TriangleAlert className="size-3 shrink-0" />
+          <p className="tk-note mt-2.5 flex items-center gap-1.5 border-t border-dashed border-[var(--tk-line)]/70 pt-2.5 text-[var(--tk-warn)]">
+            <TriangleAlert className="size-3.5 shrink-0" />
             <span className="truncate">지각 시 · {promise.penalty}</span>
           </p>
         ) : null}
 
-        <div className="mt-2.5 flex items-center">
+        <div className="mt-3 flex items-center">
           <div className="flex">
             {names.slice(0, 4).map((n, i) => (
               <span
                 key={`${n}-${i}`}
                 title={n}
-                className="-mr-1.5 grid size-[21px] place-items-center rounded-full
+                className="-mr-1.5 grid size-[22px] place-items-center rounded-full
                   border-[1.5px] border-[var(--tk-paper)] bg-[var(--tk-ground)]
-                  text-[10.5px] font-bold text-[var(--tk-ink)]"
+                  text-[11px] font-bold text-[var(--tk-ink)]"
               >
                 {initial(n)}
               </span>
             ))}
           </div>
-          <span className="ml-3 text-[11.5px] text-[var(--tk-faint)]">
+          <span className="tk-caption ml-3 text-[var(--tk-faint)]">
             {names.length > 0 ? `${names.length}명 참여` : "참여자 없음"}
           </span>
         </div>
@@ -110,17 +110,11 @@ export default function PromiseTicket({
 
       {/* 절취선 + 스텁 */}
       <div
-        className={`flex flex-col items-center justify-center gap-0.5
+        className={`flex flex-col items-center justify-center gap-1
           border-l-2 border-dashed border-[var(--tk-line)] ${stub.box}`}
       >
-        <span
-          className={`text-[21px] font-extrabold leading-none tracking-tight tabular-nums ${stub.badge}`}
-        >
-          {countdown.badge}
-        </span>
-        <span className={`text-[10px] font-bold tracking-wide ${stub.detail}`}>
-          {countdown.detail}
-        </span>
+        <span className={`tk-dday ${stub.badge}`}>{countdown.badge}</span>
+        <span className={`tk-dday-sub ${stub.detail}`}>{countdown.detail}</span>
       </div>
     </button>
   );

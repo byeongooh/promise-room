@@ -29,7 +29,6 @@ import {
 } from "@/lib/promise-time";
 import { getParticipantNames } from "@/lib/promise-permissions";
 
-import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
   CalendarDays,
@@ -227,13 +226,11 @@ export default function HomePage() {
   // 로딩 중 화면
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-10 max-w-5xl">
-          <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
-              로딩 중…
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-[var(--tk-ground)]">
+        <div className="container mx-auto max-w-lg px-4 py-10">
+          <div className="rounded-2xl bg-[var(--tk-paper)] p-6 text-center text-[var(--tk-faint)] shadow-sm ring-1 ring-black/5">
+            로딩 중…
+          </div>
         </div>
       </div>
     );
@@ -243,8 +240,10 @@ export default function HomePage() {
   if (!session) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 max-w-3xl sm:py-8">
+    <div className="min-h-screen bg-[var(--tk-ground)]">
+      {/* 다른 화면과 같은 폭을 쓴다. 넓게 늘리면 카드가 휑해지고
+          글자가 상대적으로 작아 보인다. */}
+      <div className="container mx-auto max-w-lg px-4 py-5">
         {/* 헤더: 좁은 화면에서는 제목과 조작부를 위아래로 나눈다.
             (예전에는 한 줄로 붙어 있어 이름이 세로로 쭈그러들었다) */}
         <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -253,7 +252,7 @@ export default function HomePage() {
               <Wordmark size="md" className="sm:hidden" />
               <Wordmark size="lg" className="max-sm:hidden" />
             </h1>
-            <p className="mt-1.5 truncate text-sm text-[var(--tk-sub)]">
+            <p className="tk-meta mt-1.5 truncate text-[var(--tk-sub)]">
               {kakaoName ? `${kakaoName}님의 약속` : "친구들과 함께하는 약속 관리"}
             </p>
           </div>
@@ -273,42 +272,36 @@ export default function HomePage() {
         </header>
 
         {loading ? (
-          <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
-              로딩 중…
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl bg-[var(--tk-paper)] py-10 text-center tk-meta text-[var(--tk-faint)] shadow-sm ring-1 ring-black/5">
+            로딩 중…
+          </div>
         ) : loadError ? (
-          <Card className="border-destructive/40">
-            <CardContent className="py-16 text-center">
-              <div className="text-3xl mb-2">⚠️</div>
-              <h2 className="text-xl font-semibold mb-1">약속을 불러오지 못했습니다</h2>
-              <p className="text-muted-foreground mb-4">{loadError}</p>
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                다시 시도
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-14 text-center shadow-sm ring-1 ring-[var(--tk-warn)]/25">
+            <div className="mb-2 text-3xl">⚠️</div>
+            <h2 className="tk-title mb-1 text-[var(--tk-ink)]">약속을 불러오지 못했습니다</h2>
+            <p className="tk-meta mb-4 text-[var(--tk-sub)]">{loadError}</p>
+            <Button variant="outline" className="h-11" onClick={() => window.location.reload()}>
+              다시 시도
+            </Button>
+          </div>
         ) : promises.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <div className="text-3xl mb-2">🗓️</div>
-              <h2 className="text-xl font-semibold mb-1">아직 약속이 없습니다</h2>
-              <p className="text-muted-foreground mb-4">
-                참여한 약속만 여기에 표시됩니다. 새 약속을 만들거나 친구에게 받은 링크로 참여하세요.
-              </p>
-              <Link href="/create">
-                <Button>
-                  <PlusCircle className="w-4 h-4 mr-2" />
-                  새 약속 만들기
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-14 text-center shadow-sm ring-1 ring-black/5">
+            <div className="mb-2 text-3xl">🎟️</div>
+            <h2 className="tk-title mb-1 text-[var(--tk-ink)]">아직 약속이 없습니다</h2>
+            <p className="tk-meta mx-auto mb-5 max-w-[26ch] text-balance break-keep text-[var(--tk-sub)]">
+              참여한 약속만 여기에 표시됩니다. 새로 만들거나 친구에게 받은 링크로 참여하세요.
+            </p>
+            <Link href="/create">
+              <Button className="h-11 bg-[var(--tk-gold)] px-4 text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
+                <PlusCircle className="w-4 h-4 mr-1.5" />
+                새 약속 만들기
+              </Button>
+            </Link>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {upcoming.length > 0 && (
-              <p className="px-1 text-[11px] font-bold tracking-[0.12em] text-muted-foreground">
+              <p className="px-1 tk-label text-[var(--tk-faint)]">
                 다가오는 약속
               </p>
             )}
@@ -317,7 +310,7 @@ export default function HomePage() {
             ))}
 
             {past.length > 0 && (
-              <p className="mt-4 px-1 text-[11px] font-bold tracking-[0.12em] text-muted-foreground">
+              <p className="mt-4 px-1 tk-label text-[var(--tk-faint)]">
                 지난 약속
               </p>
             )}
@@ -331,11 +324,11 @@ export default function HomePage() {
       <Dialog open={open} onOpenChange={(v) => (!v ? closeDetail() : setOpen(v))}>
         <DialogContent className="max-w-2xl">
           {detailLoading ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <div className="flex items-center justify-center py-12 tk-meta text-[var(--tk-faint)]">
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> 불러오는 중…
             </div>
           ) : !detail ? (
-            <div className="py-8 text-center text-muted-foreground">
+            <div className="py-8 text-center tk-meta text-[var(--tk-faint)]">
               약속을 찾을 수 없습니다.
             </div>
           ) : (

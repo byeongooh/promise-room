@@ -446,27 +446,24 @@ export default function PromisePage() {
         {/* 히어로 티켓 */}
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_6rem] overflow-hidden rounded-2xl bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5">
           <div className="min-w-0 p-5">
-            {/* break-keep: 한글이 단어 중간에서 잘리지 않게 한다 */}
-            <h1 className="text-[21px] font-extrabold leading-tight tracking-tight text-balance break-keep text-[var(--tk-ink)]">
-              {promiseData.title}
-            </h1>
-            <p className="mt-1 text-[12px] text-[var(--tk-faint)]">
+            <h1 className="tk-display text-[var(--tk-ink)]">{promiseData.title}</h1>
+            <p className="tk-caption mt-1 text-[var(--tk-faint)]">
               만든 사람 · {displayCreatorName}
             </p>
 
-            <div className="mt-3 space-y-1 text-[13px] text-[var(--tk-sub)]">
-              <p className="flex items-center gap-2">
-                <CalendarDays className="size-4 shrink-0 opacity-70" />
+            <div className="mt-3 space-y-1 text-[var(--tk-sub)]">
+              <p className="tk-meta flex items-center gap-2">
+                <CalendarDays className="size-4 shrink-0 opacity-60" />
                 {formatWhen(getPromiseDate(promiseData))}
               </p>
-              <p className="flex items-center gap-2">
-                <MapPin className="size-4 shrink-0 opacity-70" />
+              <p className="tk-meta flex items-center gap-2">
+                <MapPin className="size-4 shrink-0 opacity-60" />
                 {displayLocation(promiseData.location)}
               </p>
             </div>
 
             {promiseData.penalty?.trim() ? (
-              <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[var(--tk-warn)]">
+              <p className="tk-note mt-2.5 flex items-center gap-2 text-[var(--tk-warn)]">
                 <ShieldAlert className="size-4 shrink-0" />
                 지각 시 · {promiseData.penalty}
               </p>
@@ -476,34 +473,32 @@ export default function PromisePage() {
           <div
             className={`flex flex-col items-center justify-center gap-1 border-l-2 border-dashed border-[var(--tk-line)] ${stubTone}`}
           >
-            <span className="text-[24px] font-extrabold leading-none tracking-tight tabular-nums">
-              {countdown.badge}
-            </span>
-            <span className="text-[11px] font-bold opacity-80">{countdown.detail}</span>
+            <span className="tk-dday text-[22px]">{countdown.badge}</span>
+            <span className="tk-dday-sub opacity-80">{countdown.detail}</span>
           </div>
         </div>
 
         {/* 약속 장소 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-2.5 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+          <p className="mb-2.5 tk-label text-[var(--tk-faint)]">
             약속 장소
           </p>
           <div
             id="kakao-map"
             className="h-44 w-full overflow-hidden rounded-xl bg-[var(--tk-ground)]"
           />
-          <p className="mt-2.5 text-[13px] font-medium text-[var(--tk-ink)]">
+          <p className="tk-meta mt-2.5 font-medium text-[var(--tk-ink)]">
             {displayLocation(promiseData.location)}
           </p>
         </section>
 
         {/* 참여자 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-3 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+          <p className="mb-3 tk-label text-[var(--tk-faint)]">
             참여자 {participantNames.length}명
           </p>
           {participantNames.length === 0 ? (
-            <p className="py-2 text-[13px] text-[var(--tk-faint)]">아직 참여자가 없습니다.</p>
+            <p className="tk-meta py-2 text-[var(--tk-faint)]">아직 참여자가 없습니다.</p>
           ) : (
             <ul className="space-y-2.5">
               {participantNames.map((n, i) => (
@@ -511,9 +506,9 @@ export default function PromisePage() {
                   <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--tk-ground)] text-[12px] font-bold text-[var(--tk-ink)]">
                     {n.trim().charAt(0) || "?"}
                   </span>
-                  <span className="text-[13.5px] font-medium text-[var(--tk-ink)]">{n}</span>
+                  <span className="tk-meta font-medium text-[var(--tk-ink)]">{n}</span>
                   {n === displayCreatorName && (
-                    <span className="text-[11px] text-[var(--tk-faint)]">약속 생성자</span>
+                    <span className="tk-caption text-[var(--tk-faint)]">약속 생성자</span>
                   )}
                 </li>
               ))}
@@ -523,24 +518,24 @@ export default function PromisePage() {
 
         {/* 알림 (아직 동작하지 않음) */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.12em] text-[var(--tk-faint)]">
+          <p className="mb-3 flex items-center gap-1.5 tk-label text-[var(--tk-faint)]">
             <Bell className="size-3.5" /> 알림
           </p>
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded-xl bg-[var(--tk-ground)] px-3.5 py-2.5">
-              <Label htmlFor="alarm-10min" className="cursor-pointer text-[13.5px]">
+              <Label htmlFor="alarm-10min" className="tk-meta cursor-pointer">
                 10분 전에 알려주기
               </Label>
               <Switch id="alarm-10min" checked={alarm10Min} onCheckedChange={setAlarm10Min} />
             </div>
             <div className="flex items-center justify-between rounded-xl bg-[var(--tk-ground)] px-3.5 py-2.5">
-              <Label htmlFor="alarm-1hour" className="cursor-pointer text-[13.5px]">
+              <Label htmlFor="alarm-1hour" className="tk-meta cursor-pointer">
                 1시간 전에 알려주기
               </Label>
               <Switch id="alarm-1hour" checked={alarm1Hour} onCheckedChange={setAlarm1Hour} />
             </div>
           </div>
-          <p className="mt-2.5 text-[11.5px] text-[var(--tk-faint)]">
+          <p className="tk-caption mt-2.5 text-[var(--tk-faint)]">
             아직 실제로 알림이 오지는 않습니다. 앱으로 만들 때 연결됩니다.
           </p>
         </section>
