@@ -9,6 +9,16 @@ import { DirectionsUnavailable, isPlausibleKoreanCoord, type Coordinate } from "
 
 const ENDPOINT = "https://api.odsay.com/v1/api/searchPubTransPathT";
 
+/** ODsay에 등록해둔 주소. 다른 도메인을 쓰게 되면 환경변수로 바꾼다. */
+function registeredOrigin(): string {
+  return (
+    process.env.ODSAY_REGISTERED_URI ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000")
+  );
+}
+
 export interface TransitOption {
   /** 초 (ODsay는 분으로 준다) */
   durationSec: number;
@@ -75,7 +85,14 @@ async function call(
     apiKey: key,
   });
 
-  const res = await fetch(`${ENDPOINT}?${params}`, { cache: "no-store" });
+  // ODsay 애플리케이션을 URI 방식으로 등록했다면, 어느 사이트에서 부르는지를
+  // Referer로 확인한다. 서버에서 부르는 요청에는 Referer가 없으므로 직접 붙인다.
+  // (Server 방식은 공인 IP 고정을 요구하는데, Vercel은 요청마다 IP가 달라
+  //  이 프로젝트에서는 쓸 수 없다.)
+  const res = await fetch(`${ENDPOINT}?${params}`, {
+    cache: "no-store",
+    headers: { Referer: registeredOrigin() },
+  });
   if (!res.ok) {
     throw new DirectionsUnavailable(`ODsay 응답 ${res.status}`);
   }

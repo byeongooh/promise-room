@@ -6,13 +6,18 @@
 
 const KEY = process.env.ODSAY_API_KEY;
 
+// ODsay에 URI 방식으로 등록했다면 어느 사이트에서 부르는지를 Referer로 본다.
+// 서버에서 부르는 요청에는 Referer가 없으므로 직접 붙인다.
+const REFERER = process.env.ODSAY_REGISTERED_URI ?? "https://promise-room.vercel.app";
+
 if (!KEY) {
   console.error("✗ ODSAY_API_KEY가 없습니다.");
   console.error("  .env.local 맨 아래에 ODSAY_API_KEY=받은키 를 넣고 다시 실행하세요.");
   process.exit(1);
 }
 
-console.log(`키 확인 · ${KEY.slice(0, 4)}… (${KEY.length}자)\n`);
+console.log(`키 확인 · ${KEY.slice(0, 4)}… (${KEY.length}자)`);
+console.log(`Referer  · ${REFERER}\n`);
 
 // 서울 안 / 서울↔지방 두 가지를 시험한다.
 // 앱에서 실제로 겪을 두 경우(도시내·도시간)를 다 건드려 보기 위함.
@@ -35,7 +40,10 @@ async function call({ sx, sy, ex, ey }, searchType) {
     apiKey: KEY,
   });
 
-  const res = await fetch(`https://api.odsay.com/v1/api/searchPubTransPathT?${p}`);
+  // 앱과 똑같이 Referer를 붙여 보낸다 (URI 방식으로 등록한 경우 필요).
+  const res = await fetch(`https://api.odsay.com/v1/api/searchPubTransPathT?${p}`, {
+    headers: { Referer: REFERER },
+  });
   const data = await res.json();
 
   if (data.error) {
