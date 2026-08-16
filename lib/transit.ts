@@ -52,12 +52,18 @@ function straightDistanceM(a: Coordinate, b: Coordinate): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+type OdsayResult = {
+  paths: OdsayPath[];
+  /** 1이면 "이건 도시 안 이동이 아니다"라는 신호. 도시간으로 다시 물어봐야 한다. */
+  needsIntercity: boolean;
+};
+
 async function call(
   origin: Coordinate,
   destination: Coordinate,
   key: string,
   searchType: 0 | 1
-): Promise<OdsayPath[]> {
+): Promise<OdsayResult> {
   const params = new URLSearchParams({
     // ODsay도 경도(X), 위도(Y) 순이다.
     SX: String(origin.lng),
@@ -76,7 +82,7 @@ async function call(
 
   const data = (await res.json()) as {
     error?: { code?: string; msg?: string } | { code?: string; msg?: string }[];
-    result?: { path?: OdsayPath[] };
+    result?: { path?: OdsayPath[]; outTrafficCheck?: number };
   };
 
   if (data.error) {
@@ -84,7 +90,10 @@ async function call(
     throw new DirectionsUnavailable(`ODsay ${e?.code ?? ""} ${e?.msg ?? ""}`.trim());
   }
 
-  return data.result?.path ?? [];
+  return {
+    paths: data.result?.path ?? [],
+    needsIntercity: data.result?.outTrafficCheck === 1,
+  };
 }
 
 export async function getTransitRoute(
@@ -98,17 +107,27 @@ export async function getTransitRoute(
     throw new DirectionsUnavailable("좌표가 올바르지 않습니다.");
   }
 
-  // 도시 안(0)과 도시 간(1)을 따로 요구한다. 거리로 먼저 찍고,
-  // 틀렸으면 반대쪽으로 한 번 더 물어본다.
-  const far = straightDistanceM(origin, destination) > 40_000;
-  const first: 0 | 1 = far ? 1 : 0;
+  // ODsay는 도시 안(0)과 도시 간(1)을 따로 요구한다.
+  //   도시 안  — 지하철·시내버스
+  //   도시 간  — 고속/시외버스·기차
+  // 어느 쪽인지 미리 알 수 없으므로 직선거리로 먼저 찍고, 아니면 반대쪽으로
+  // 한 번 더 물어본다. 다시 물어보는 조건은 세 가지다.
+  //   ① 오류가 났다  ② 경로가 하나도 없다  ③ outTrafficCheck=1 (도시 안이 아니라는 신호)
+  const first: 0 | 1 = straightDistanceM(origin, destination) > 40_000 ? 1 : 0;
+  const second: 0 | 1 = first === 0 ? 1 : 0;
 
-  let paths: OdsayPath[];
+  let paths: OdsayPath[] = [];
   try {
-    paths = await call(origin, destination, key, first);
-    if (paths.length === 0) throw new DirectionsUnavailable("경로 없음");
+    const r = await call(origin, destination, key, first);
+    if (r.paths.length > 0 && !r.needsIntercity) {
+      paths = r.paths;
+    }
   } catch {
-    paths = await call(origin, destination, key, first === 0 ? 1 : 0);
+    /* 아래에서 반대쪽으로 다시 물어본다 */
+  }
+
+  if (paths.length === 0) {
+    paths = (await call(origin, destination, key, second)).paths;
   }
 
   const best = paths[0];
