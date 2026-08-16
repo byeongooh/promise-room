@@ -45,9 +45,12 @@ function initial(name: string): string {
 export default function PromiseTicket({
   promise,
   onOpen,
+  example = false,
 }: {
   promise: PromiseData & { id: string };
   onOpen: (id: string) => void;
+  /** 예시 티켓. 진짜 약속이 아니므로 누를 수 없고, 예시라고 표시한다. */
+  example?: boolean;
 }) {
   const when = getPromiseDate(promise);
   const countdown = getCountdown(when);
@@ -55,15 +58,64 @@ export default function PromiseTicket({
   const names = getParticipantNames(promise);
   const isPast = countdown.tone === "past";
 
+  const shell = `grid w-full grid-cols-[minmax(0,1fr)_5.25rem] overflow-hidden rounded-xl
+    bg-[var(--tk-paper)] text-left shadow-sm ring-1 ring-black/5 ${isPast ? "opacity-65" : ""}`;
+
+  // 예시는 열 상세 화면이 없다. 버튼으로 두면 눌러보고 아무 일도 안 일어난다.
+  if (example) {
+    return (
+      <div className={`${shell} relative`} aria-label="예시 약속">
+        <span
+          className="absolute right-[5.75rem] top-2.5 rounded-full bg-[var(--tk-ground)]
+            px-2 py-0.5 tk-caption font-bold text-[var(--tk-faint)]"
+        >
+          예시
+        </span>
+        <TicketFace
+          promise={promise}
+          when={when}
+          names={names}
+          countdown={countdown}
+          stub={stub}
+        />
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={() => onOpen(promise.id)}
-      className={`group grid w-full grid-cols-[minmax(0,1fr)_5.25rem] overflow-hidden rounded-xl
-        bg-[var(--tk-paper)] text-left shadow-sm ring-1 ring-black/5 transition
-        hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2
-        focus-visible:outline-[var(--tk-ink)] ${isPast ? "opacity-65" : ""}`}
+      className={`group ${shell} transition hover:shadow-md focus-visible:outline-2
+        focus-visible:outline-offset-2 focus-visible:outline-[var(--tk-ink)]`}
     >
+      <TicketFace
+        promise={promise}
+        when={when}
+        names={names}
+        countdown={countdown}
+        stub={stub}
+      />
+    </button>
+  );
+}
+
+/** 티켓 안쪽. 누를 수 있는 티켓과 예시 티켓이 같은 얼굴을 쓰도록 떼어냈다. */
+function TicketFace({
+  promise,
+  when,
+  names,
+  countdown,
+  stub,
+}: {
+  promise: PromiseData & { id: string };
+  when: Date | null;
+  names: string[];
+  countdown: ReturnType<typeof getCountdown>;
+  stub: (typeof STUB_STYLE)[Tone];
+}) {
+  return (
+    <>
       {/* 티켓 본문 */}
       <div className="min-w-0 p-4 sm:p-[18px]">
         <h3 className="tk-title truncate text-[var(--tk-ink)]">
@@ -116,6 +168,6 @@ export default function PromiseTicket({
         <span className={`tk-dday ${stub.badge}`}>{countdown.badge}</span>
         <span className={`tk-dday-sub ${stub.detail}`}>{countdown.detail}</span>
       </div>
-    </button>
+    </>
   );
 }

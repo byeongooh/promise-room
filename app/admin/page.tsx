@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PromiseTicket from "@/components/promise-ticket";
 import { getCountdown, getPromiseDate, sortByWhen } from "@/lib/promise-time";
+import { getSamplePromise } from "@/lib/sample-promise";
 import type { PromiseData } from "@/lib/types";
 
 // 테스트 관찰용 관리자 화면. 카카오 로그인과 무관하게 동작한다.
@@ -228,12 +229,19 @@ export default function AdminPage() {
             </div>
 
             {visible.upcoming.length === 0 && visible.past.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-14 text-center shadow-sm ring-1 ring-black/5">
-                <div className="mb-2 text-3xl">🎟️</div>
-                <p className="tk-title text-[var(--tk-ink)]">보이는 약속이 없습니다</p>
-                <p className="tk-meta mt-1 text-[var(--tk-sub)]">
-                  이 사람은 아직 어떤 약속에도 참여하지 않았습니다.
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-10 text-center shadow-sm ring-1 ring-black/5">
+                  <div className="mb-2 text-3xl">🎟️</div>
+                  <p className="tk-title text-[var(--tk-ink)]">보이는 약속이 없습니다</p>
+                  <p className="tk-meta mt-1 text-[var(--tk-sub)]">
+                    이 사람은 아직 어떤 약속에도 참여하지 않았습니다.
+                  </p>
+                </div>
+                {/* 실제 화면과 같게, 약속이 없는 사람에게는 예시 한 장이 보인다 */}
+                <p className="mt-3 px-1 tk-label text-[var(--tk-faint)]">
+                  약속을 만들면 이렇게 보입니다
                 </p>
+                <PromiseTicket promise={getSamplePromise()} onOpen={() => {}} example />
               </div>
             ) : (
               <div className="flex flex-col gap-3">
