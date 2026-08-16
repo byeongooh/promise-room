@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Car, Crosshair, Loader2, Navigation, Plus, Trash2 } from "lucide-react";
+import { Car, Crosshair, Loader2, Navigation, Plus, TrainFront, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,17 @@ const CURRENT = "__current__";
 
 type Origin = { label: string; lat: number; lng: number };
 
+type Routes = {
+  car: { durationSec: number; distanceM: number } | null;
+  transit: {
+    durationSec: number;
+    transfers: number;
+    mode: string;
+    fare: number | null;
+    firstStation: string | null;
+  } | null;
+};
+
 function formatDuration(sec: number): string {
   const min = Math.round(sec / 60);
   if (min < 60) return `${min}분`;
@@ -57,7 +68,7 @@ export default function TravelTime({
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [originError, setOriginError] = useState<string | null>(null);
 
-  const [route, setRoute] = useState<{ durationSec: number; distanceM: number } | null>(null);
+  const [routes, setRoutes] = useState<Routes | null>(null);
   const [routeState, setRouteState] = useState<"idle" | "loading" | "unavailable">("idle");
 
   // 장소 추가 대화상자
@@ -108,7 +119,7 @@ export default function TravelTime({
 
   useEffect(() => {
     if (!origin || destLat === undefined || destLng === undefined) {
-      setRoute(null);
+      setRoutes(null);
       setRouteState("idle");
       return;
     }
@@ -125,19 +136,20 @@ export default function TravelTime({
       }),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((data) => {
+      .then((data: Routes) => {
         if (cancelled) return;
-        if (data?.unavailable) {
-          setRoute(null);
+        // 둘 다 못 가져왔으면 보여줄 게 없다.
+        if (!data?.car && !data?.transit) {
+          setRoutes(null);
           setRouteState("unavailable");
           return;
         }
-        setRoute({ durationSec: data.durationSec, distanceM: data.distanceM });
+        setRoutes(data);
         setRouteState("idle");
       })
       .catch(() => {
         if (cancelled) return;
-        setRoute(null);
+        setRoutes(null);
         setRouteState("unavailable");
       });
 
@@ -231,36 +243,72 @@ export default function TravelTime({
       </div>
 
       {/* 결과 */}
-      <div className="mt-3.5 flex items-center gap-3 rounded-xl bg-[var(--tk-ground)] px-4 py-3">
-        <Car className="size-5 shrink-0 text-[var(--tk-sub)]" />
-        <div className="min-w-0 flex-1">
-          {originError ? (
-            <p className="tk-meta text-[var(--tk-sub)]">{originError}</p>
-          ) : !origin ? (
-            <p className="tk-meta flex items-center gap-1.5 text-[var(--tk-faint)]">
-              <Loader2 className="size-3.5 animate-spin" />위치 확인 중…
-            </p>
-          ) : !destination ? (
-            <p className="tk-meta text-[var(--tk-sub)]">
-              약속 장소에 좌표가 없어 계산할 수 없습니다.
-            </p>
-          ) : routeState === "loading" ? (
-            <p className="tk-meta flex items-center gap-1.5 text-[var(--tk-faint)]">
-              <Loader2 className="size-3.5 animate-spin" />계산 중…
-            </p>
-          ) : routeState === "unavailable" || !route ? (
-            <p className="tk-meta text-[var(--tk-sub)]">소요시간을 가져오지 못했습니다.</p>
-          ) : (
-            <>
-              <p className="text-[19px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
-                차로 {formatDuration(route.durationSec)}
-              </p>
-              <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
-                {origin.label}에서 · {formatDistance(route.distanceM)}
-              </p>
-            </>
-          )}
-        </div>
+      <div className="mt-3.5">
+        {originError ? (
+          <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
+            {originError}
+          </p>
+        ) : !origin ? (
+          <p className="tk-meta flex items-center gap-1.5 rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-faint)]">
+            <Loader2 className="size-3.5 animate-spin" />위치 확인 중…
+          </p>
+        ) : !destination ? (
+          <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
+            약속 장소에 좌표가 없어 계산할 수 없습니다.
+          </p>
+        ) : routeState === "loading" ? (
+          <p className="tk-meta flex items-center gap-1.5 rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-faint)]">
+            <Loader2 className="size-3.5 animate-spin" />계산 중…
+          </p>
+        ) : routeState === "unavailable" || !routes ? (
+          <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
+            소요시간을 가져오지 못했습니다.
+          </p>
+        ) : (
+          <>
+            <p className="tk-caption mb-2 text-[var(--tk-faint)]">{origin.label}에서 출발</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {routes.transit && (
+                <div className="rounded-xl bg-[var(--tk-ground)] px-4 py-3">
+                  <p className="tk-caption flex items-center gap-1.5 text-[var(--tk-faint)]">
+                    <TrainFront className="size-3.5" />
+                    {routes.transit.mode}
+                  </p>
+                  <p className="mt-1 text-[19px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+                    {formatDuration(routes.transit.durationSec)}
+                  </p>
+                  <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
+                    {routes.transit.transfers > 0
+                      ? `환승 ${routes.transit.transfers}회`
+                      : "환승 없음"}
+                    {routes.transit.fare !== null &&
+                      ` · ${routes.transit.fare.toLocaleString("ko-KR")}원`}
+                  </p>
+                  {routes.transit.firstStation && (
+                    <p className="tk-caption mt-0.5 truncate text-[var(--tk-faint)]">
+                      {routes.transit.firstStation}에서 탑승
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {routes.car && (
+                <div className="rounded-xl bg-[var(--tk-ground)] px-4 py-3">
+                  <p className="tk-caption flex items-center gap-1.5 text-[var(--tk-faint)]">
+                    <Car className="size-3.5" />
+                    자동차
+                  </p>
+                  <p className="mt-1 text-[19px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+                    {formatDuration(routes.car.durationSec)}
+                  </p>
+                  <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
+                    {formatDistance(routes.car.distanceM)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <Button asChild variant="outline" className="mt-2.5 h-11 w-full">
@@ -269,9 +317,6 @@ export default function TravelTime({
           카카오맵으로 길찾기
         </a>
       </Button>
-      <p className="tk-caption mt-2 text-[var(--tk-faint)]">
-        소요시간은 자동차 기준입니다. 대중교통은 길찾기를 눌러 확인하세요.
-      </p>
 
       {/* 출발지 추가 */}
       <Dialog open={adding} onOpenChange={setAdding}>
