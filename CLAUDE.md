@@ -1,0 +1,197 @@
+# Promise Room
+
+친구들과 약속을 잡고, 늦으면 벌칙을 주는 앱. 약속 하나를 **입장권(티켓)** 한 장으로 보여준다.
+
+**최종 목표는 React Native 앱**이다. 지금의 웹앱은 징검다리이고, 참여자끼리
+**실시간 위치를 공유**하는 것이 종착점이다. 그래서 웹 전용으로만 쓰이고 버려질
+작업(예: iOS 웹 푸시를 위한 PWA 우회)에는 시간을 쓰지 않는다.
+
+- 프로덕션: https://promise-room.vercel.app
+- 저장소: https://github.com/byeongooh/promise-room
+
+## 기술 스택
+
+Next.js 16 (App Router) · TypeScript · Tailwind v4 + shadcn/ui ·
+NextAuth v4(카카오 로그인만) · Firebase Firestore + Admin SDK · Vercel
+
+## 새 컴퓨터에서 시작하기
+
+```bash
+git clone https://github.com/byeongooh/promise-room.git
+cd promise-room
+npm install
+```
+
+그다음 **`.env.local`을 손으로 만들어야 한다.** 이 파일은 깃에 올라가지 않는다
+(비밀 값이라 올리면 안 된다). 필요한 이름은 아래와 같고, 값은 Vercel →
+Settings → Environment Variables에 등록되어 있다. 단 **Sensitive로 저장한 값은
+다시 볼 수 없으므로** 각 서비스 콘솔에서 새로 받아야 한다.
+
+| 이름 | 어디서 |
+|---|---|
+| `NEXTAUTH_URL` | 로컬은 `http://localhost:3000` |
+| `NEXTAUTH_SECRET` | 아무 긴 문자열. 바꾸면 기존 로그인 세션이 다 끊긴다 |
+| `KAKAO_CLIENT_ID` | 카카오 개발자 → 내 앱 → 앱 키 → **REST API 키** |
+| `KAKAO_CLIENT_SECRET` | 카카오 개발자 → 카카오 로그인 → 보안 |
+| `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개 키 |
+| `ADMIN_PASSWORD_HASH` | `/admin/setup` 페이지에서 새로 만든다 |
+| `ODSAY_API_KEY` | lab.odsay.com → 내 애플리케이션 |
+
+`FIREBASE_PRIVATE_KEY`는 줄바꿈이 들어 있어 `"..."`로 감싸야 한다.
+
+```bash
+npm run dev        # http://localhost:3000
+npx tsc --noEmit   # 타입 검사 — 커밋 전에 항상
+npm run build      # 빌드 확인
+node --env-file=.env.local scripts/check-odsay.mjs   # 대중교통 API 점검
+```
+
+## 보안 — 반드시 지킬 것
+
+이 프로젝트는 처음에 **Firestore가 전부 공개**였고, 이를 참여자 전용으로
+바꾸는 7단계 작업을 마쳤다. 그 구조를 무너뜨리지 말 것.
+
+- **클라이언트 쓰기는 전면 금지.** 모든 쓰기는 서버 API(`/api/promises/*`)를 거친다.
+  `firestore.rules`가 클라이언트 write를 막고 있다.
+- **약속 비밀번호는 해시로만** `promises/{id}/private/auth`에 있다. 보안 규칙은
+  필드 단위로 가릴 수 없어서, 약속 문서에 두면 문서를 읽는 순간 같이 읽힌다.
+  이 하위 컬렉션은 규칙에서 완전히 차단되어 있고 Admin SDK만 접근한다.
+  **어떤 API 응답에도 해시를 넣지 말 것.**
+- **읽기는 참여자만.** 대시보드는 `where("participantIds","array-contains",uid)`로
+  읽는다. 규칙은 필터가 아니라서, 목록 질의에 한 건이라도 권한 없는 문서가
+  걸리면 질의 전체가 실패한다.
+- **외부 API 키는 서버에만.** 카카오·ODsay 호출은 전부 서버 라우트를 거친다.
+  브라우저에서 직접 부르면 키가 노출되고 남이 쿼터를 대신 쓴다.
+- **`.env.local`은 절대 커밋하지 않는다.** `.migration-backup/`도 마찬가지다
+  (평문 비밀번호가 들어 있다).
+- **관리자 비밀번호는 사람이 정한다.** `/admin/setup`에서 해시만 만들어 환경변수에
+  넣는 방식이고, 서버는 평문을 저장하지 않는다.
+
+## uid 규칙
+
+사용자 식별자는 **항상 `kakao:숫자`** 형식이다. NextAuth JWT가 로그인 시점에만
+`token.uid`를 채워서, 그 전에 발급된 토큰은 접두사 없는 값으로 흘러온다.
+그래서 **모든 uid는 `lib/uid.ts`의 `toCanonicalUid()`를 통과시킨다.** 이걸
+빼먹으면 해당 브라우저가 조용히 자기 약속에서 잠긴다.
+
+## 길찾기 — 한국에서 겪은 것들
+
+**구글 길찾기는 한국에서 못 쓴다** (지도 데이터 반출 규제). 그래서:
+
+| | 자동차 | 대중교통 |
+|---|---|---|
+| 카카오모빌리티 | ✅ 하루 1만 건 무료 | ❌ API 없음 |
+| 네이버 클라우드 | ✅ | ❌ 자동차만 |
+| ODsay | ❌ | ✅ 하루 1천 건 무료 |
+| TMAP | ✅ | ✅ 비쌈 |
+
+- 자동차는 **카카오모빌리티**. `KAKAO_CLIENT_ID`가 곧 REST 키라 별도 발급이 없다.
+- 대중교통은 **ODsay**. Server 방식으로 등록하면 공인 IP 고정을 요구하는데
+  Vercel은 요청마다 IP가 달라(고정 IP는 월 $100, Pro 이상) 맞출 수 없다.
+  그래서 **URI 방식**으로 등록하고 서버가 `Referer`를 직접 붙여 보낸다.
+
+### ODsay에서 크게 데인 것 (다시 밟지 말 것)
+
+1. **도시 안(SearchType=0)과 도시 간(1)은 응답 필드 이름이 다르다.**
+   요금 `payment` ↔ `totalPayment`, 환승 `bus/subwayTransitCount` ↔ `transitCount`,
+   경로 종류 `pathType` 1~3 ↔ 11~13.
+2. **`outTrafficCheck=1`은 "도시 경계를 넘는다"는 정보일 뿐**,
+   "도시 안 결과를 버리라"는 뜻이 아니다. 이걸 오해해서 안양→잠실이
+   **62분 대신 11분**으로 나왔다(도시 간 검색이 준 "안양→영등포"였다).
+3. **도시 간 검색은 목적지에 닿지 않는 경로를 준다.** 역과 역 사이만 안내하기
+   때문이다. 이동 거리로도 못 거른다(안양→서울역은 직선거리의 1.21배).
+   그래서 **직선거리 40km**로 나눈다 — 도시 안은 늘 부르고, 40km가 넘을 때만
+   도시 간을 보탠다.
+4. **항공·해운은 뺀다.** 서울→부산이 "65분"으로 나오는데 김포→김해 비행기다.
+   공항까지 가는 시간이 없어 이걸 믿고 약속을 잡으면 안 된다.
+5. **같은 길에 버스 번호만 다른 경로를 여러 개 준다**(5531/51/5623).
+   타는 곳·내리는 곳이 같으면 한 줄로 묶고 번호를 나란히 붙인다.
+
+`scripts/check-odsay.mjs`가 이 네 가지를 한 번에 점검한다
+(성수→강남 / 안양→롯데월드 / 서울→부산 / 서울→대전). **대중교통 쪽을
+건드리면 반드시 돌려볼 것.** 키는 앞 4글자만 찍으므로 결과를 그대로 공유해도 된다.
+
+## 파일 지도
+
+```
+lib/
+  uid.ts              uid 정규화 — 모든 uid는 여기를 통과
+  api-guard.ts        API 인증. NextAuth 쿠키 + Bearer 토큰(향후 RN 앱용)
+  promise-service.ts  Admin SDK 도메인 로직 (생성·참여·탈퇴·삭제)
+  password.ts         약속 비밀번호(scrypt, 4자 이상)
+  admin-password.ts   관리자 비밀번호. 구분자가 ':' 인 이유는 아래 참고
+  admin-auth.ts       HMAC 서명 httpOnly 쿠키 pr_admin (8시간)
+  promise-time.ts     D-day·정렬·표시용 시간 계산
+  directions.ts       카카오모빌리티 자동차 길찾기 (+ 경로 좌표)
+  transit.ts          ODsay 대중교통 경로 + 구간 단계
+  transit-lane.ts     ODsay loadLane — 지도에 그릴 노선 좌표
+  my-places.ts        저장한 출발지. 지금은 localStorage(아래 "남은 일" 참고)
+components/
+  promise-ticket.tsx  약속 티켓. example 모드는 누를 수 없는 예시용
+  promise-map.tsx     카카오 지도 + 경로 선 + 승하차 점
+  travel-time.tsx     출발지 고르기 → 경로 목록 → 지도에 그리기
+  origin-search.tsx   출발지 검색창 (카카오 장소 검색)
+  empty-promises.tsx  약속 0건일 때 화면 — 대시보드와 관리자가 공유
+app/
+  page.tsx                    대시보드 (내 약속만)
+  promise/[promiseId]/        약속 상세
+  admin/                      테스트 관찰용 관리자 화면 (읽기 전용)
+  api/directions/             소요시간 · /lane 은 노선 좌표
+scripts/check-odsay.mjs       대중교통 API 점검
+```
+
+**함정 하나:** Next.js의 `.env` 파일은 `$1` 같은 값을 변수로 보고 치환한다.
+그래서 `admin-password.ts`는 scrypt 파라미터 구분자로 `$`가 아니라 `:`를 쓰고
+base64url로 인코딩한다. 이걸 모르고 `$`를 쓰면 해시가 조용히 깨진다.
+
+## 사람이 직접 해야 하는 일
+
+Claude가 못 하는 것들이다.
+
+- **Firestore 보안 규칙 배포** — `firebase` CLI가 없어서 Firebase 콘솔에
+  붙여넣어야 한다. 배포 전에 이전 내용을 백업하고, 콘솔 Playground로 먼저 검증할 것.
+- **Firestore 색인 생성** — `participantIds`(array-contains) + `createdAt`(내림차순).
+- **외부 서비스 가입과 키 발급** (카카오·Firebase·ODsay·Vercel).
+- **환경변수 등록 후 Vercel 재배포** — 저장만 하면 기존 배포본에는 적용되지 않는다.
+
+## 지금까지 정한 것
+
+- **로그인 배경**: 지도 / 티켓 패턴 두 안을 만들어 두고 고르는 중.
+  화면 아래 전환 버튼과 `?bg=map` / `?bg=pattern`으로 바꿔 볼 수 있다.
+  정하면 안 고른 쪽과 전환 버튼을 통째로 지운다.
+- **부제**: "약속을 위한 지도 티켓" (확정)
+- **"가는 중"은 수동 클릭.** 자동 감지가 아니라, 사용자가 약속을 인지했다는
+  확인 신호로 쓰기 위해서다.
+
+## 남은 일
+
+**바로 다음 (위치 공유로 가는 뼈대)**
+약속마다 참여자별 상태를 담을 자리가 필요하다 — `promises/{id}/members/{uid}`.
+지금은 경로를 골라도 화면에서만 그려지고 새로고침하면 사라진다. 이걸 서버에
+저장해야 ① 다른 참여자가 "이시온은 2호선으로 온다"를 보고 ② 서버가
+"지금 나가야 해요" 알림 시각을 계산하고 ③ 확인 안 함 / 가는 중 / 도착
+상태를 얹을 수 있다. **보안 규칙 수정이 필요하다.**
+
+**확인 필요**
+- ODsay 실시간 버스 도착(`realtimeStation`) — 새벽에는 노선 목록만 오고
+  도착시간이 비어 있었다. 버스가 다니는 낮에 다시 확인할 것.
+- TMAP 보행자 경로 API 요금 — 지금 도보 구간은 직선 점선이다.
+  (TMAP이 비싼 건 **대중교통** API이고 보행자는 별개다.)
+
+**정리할 것**
+- 로그인 배경 확정 → 안 고른 쪽과 전환 버튼 삭제
+- 워드마크 서체 (시안 만들어 둠, 미정)
+- `my-places.ts`가 localStorage를 쓴다. 앱으로 옮길 때 서버로 이전.
+- 프로덕션에 "관리자" 이름으로 만든 샘플 약속 8건이 남아 있다.
+- 친구들(이시온·김주환·김영주·배지영)이 링크+비밀번호로 다시 참여해야 한다.
+  보안 전환 때 이름 기반 참여자가 접근 권한을 잃었기 때문이다.
+
+## 작업 방식
+
+- 커밋 메시지는 **한국어로, 왜 그렇게 했는지**를 적는다. 무엇을 바꿨는지는
+  diff에 있다. 이 저장소의 로그가 사실상 설계 기록이다.
+- 코드 주석도 한국어. 문법이 아니라 **판단**을 적는다.
+- 커밋 전 `npx tsc --noEmit`과 `npm run build`.
+- 사용자는 웹 개발이 처음이다. 전문 용어를 쓸 때는 짧게 풀어 쓴다.
+- 확인하지 못한 것은 확인하지 못했다고 말한다. 카카오 로그인이 필요한 화면은
+  Claude가 직접 볼 수 없다.
