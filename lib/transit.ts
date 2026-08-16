@@ -19,6 +19,23 @@ function registeredOrigin(): string {
   );
 }
 
+/** 경로 안의 한 단계. "5531번 버스로 9정거장" 같은 것. */
+export interface TransitStep {
+  kind: "subway" | "bus" | "walk";
+  /**
+   * 탈 수 있는 것들. 같은 정류장에서 같은 곳으로 가는 버스가 여럿이면
+   * ["5531", "51", "5623"]처럼 함께 들어간다. 걷는 단계는 빈 배열.
+   */
+  names: string[];
+  /** 지하철 호선색. 걷기·버스는 null */
+  color: string | null;
+  from: string | null;
+  to: string | null;
+  /** 정거장 수. 걷는 단계는 null */
+  stops: number | null;
+  minutes: number;
+}
+
 export interface TransitOption {
   /** 초 (ODsay는 분으로 준다) */
   durationSec: number;
@@ -32,6 +49,8 @@ export interface TransitOption {
   firstStation: string | null;
   /** 이 경로를 지도에 그릴 때 필요한 열쇠. 없으면 그릴 수 없다. */
   mapObj: string | null;
+  /** 무엇을 타고 어디서 갈아타는지 */
+  steps: TransitStep[];
 }
 
 type OdsayPath = {
@@ -51,8 +70,44 @@ type OdsayPath = {
     /** 노선 좌표를 받아올 때 쓰는 열쇠 */
     mapObj?: string;
   };
-  subPath?: { trafficType?: number }[];
+  subPath?: {
+    trafficType?: number;
+    sectionTime?: number;
+    stationCount?: number;
+    startName?: string;
+    endName?: string;
+    lane?: { name?: string; busNo?: string; subwayCode?: number }[];
+  }[];
 };
+
+// 수도권 전철 노선색. lib/transit-lane.ts와 같은 표를 쓴다.
+const SUBWAY_COLOR: Record<string, string> = {
+  "1호선": "#0052A4",
+  "2호선": "#00A84D",
+  "3호선": "#EF7C1C",
+  "4호선": "#00A5DE",
+  "5호선": "#996CAC",
+  "6호선": "#CD7C2F",
+  "7호선": "#747F00",
+  "8호선": "#E6186C",
+  "9호선": "#BB8336",
+  신분당선: "#D4003B",
+  공항철도: "#0090D2",
+  경의중앙선: "#77C4A3",
+  경춘선: "#0C8E72",
+  "수인.분당선": "#FABE00",
+  수인분당선: "#FABE00",
+  우이신설선: "#B7C452",
+  서해선: "#8FC31F",
+  김포골드라인: "#A17800",
+  신림선: "#6789CA",
+  경강선: "#0054A6",
+};
+
+/** "수도권 2호선" → "2호선". 앞에 붙는 지역명은 화면에서 자리만 먹는다. */
+function shortLineName(raw: string): string {
+  return raw.replace(/^(수도권|부산|대구|광주|대전)\s*/, "").trim();
+}
 
 // 구간의 교통수단. 경로 종류(pathType)는 도시 안(1~3)과 도시 간(11~13)이
 // 따로 놀아서, 구간 정보로 이름을 만드는 편이 확실하다.
@@ -157,13 +212,59 @@ function toOption(path: OdsayPath): TransitOption | null {
     fare: fare && fare > 0 ? fare : null,
     firstStation: info.firstStartStation ?? null,
     mapObj: info.mapObj ?? null,
+    steps: toSteps(path),
   };
 }
 
+/** 구간 목록을 화면에 뿌릴 단계로 바꾼다. */
+function toSteps(path: OdsayPath): TransitStep[] {
+  const steps: TransitStep[] = [];
+
+  for (const s of path.subPath ?? []) {
+    const minutes = s.sectionTime ?? 0;
+
+    if (s.trafficType === 3) {
+      // 0분·0m짜리 환승 통로는 단계로 세면 화면만 길어진다.
+      if (minutes > 0) {
+        steps.push({
+          kind: "walk",
+          names: [],
+          color: null,
+          from: null,
+          to: null,
+          stops: null,
+          minutes,
+        });
+      }
+      continue;
+    }
+
+    const lane = s.lane?.[0];
+    const isSubway = s.trafficType === 1;
+    const name = isSubway
+      ? lane?.name
+        ? shortLineName(lane.name)
+        : "전철"
+      : (lane?.busNo ?? "버스");
+
+    steps.push({
+      kind: isSubway ? "subway" : "bus",
+      names: [name],
+      color: isSubway ? (SUBWAY_COLOR[name] ?? null) : null,
+      from: s.startName ?? null,
+      to: s.endName ?? null,
+      stops: s.stationCount ?? null,
+      minutes,
+    });
+  }
+
+  return steps;
+}
+
 /**
- * 대중교통 경로 후보를 빠른 순으로 돌려준다.
- * ODsay는 지하철만/버스만/섞어서 등 여러 개를 주는데, 같은 방식끼리는
- * 제일 빠른 것 하나만 남긴다 — "지하철 42분, 버스 55분"처럼 고를 거리가 되게.
+ * 대중교통 경로 후보를 빠른 순으로 최대 6개 돌려준다.
+ * 방식(지하철/버스/섞어서)이 골고루 섞이도록 방식별 제일 빠른 것을 먼저
+ * 세우고, 남는 자리를 빠른 순으로 채운다.
  */
 export async function getTransitRoutes(
   origin: Coordinate,
@@ -210,11 +311,49 @@ export async function getTransitRoutes(
     throw new DirectionsUnavailable("대중교통 경로를 찾지 못했습니다.");
   }
 
-  const bestPerMode = new Map<string, TransitOption>();
+  // ODsay는 같은 길에 버스 번호만 다른 경로를 여러 개 준다(5531/51/5623…).
+  // 사용자에게는 같은 경로이므로 하나로 묶고, 탈 수 있는 번호를 모아 붙인다.
+  // 어디서 타고 어디서 내리는지가 같으면 같은 경로로 본다.
+  const shapeOf = (o: TransitOption) =>
+    o.steps
+      .filter((s) => s.kind !== "walk")
+      .map((s) => `${s.kind}:${s.from}>${s.to}`)
+      .join("|");
+
+  const byShape = new Map<string, TransitOption>();
   for (const o of options) {
-    if (!bestPerMode.has(o.mode)) bestPerMode.set(o.mode, o);
+    const shape = shapeOf(o);
+    const kept = byShape.get(shape);
+    if (!kept) {
+      byShape.set(shape, o);
+      continue;
+    }
+    // 이미 있는 경로에 이번 번호를 보탠다.
+    const ridden = o.steps.filter((s) => s.kind !== "walk");
+    kept.steps
+      .filter((s) => s.kind !== "walk")
+      .forEach((step, i) => {
+        for (const name of ridden[i]?.names ?? []) {
+          if (!step.names.includes(name)) step.names.push(name);
+        }
+      });
   }
 
-  // 화면이 좁으므로 세 개까지만 보여준다.
-  return [...bestPerMode.values()].slice(0, 3);
+  const unique = [...byShape.values()];
+
+  // 방식이 골고루 보이도록 방식별 제일 빠른 것을 먼저 세우고,
+  // 남는 자리를 빠른 순으로 채운다.
+  const picked: TransitOption[] = [];
+  const takenModes = new Set<string>();
+  for (const o of unique) {
+    if (takenModes.has(o.mode)) continue;
+    takenModes.add(o.mode);
+    picked.push(o);
+  }
+  for (const o of unique) {
+    if (picked.length >= 6) break;
+    if (!picked.includes(o)) picked.push(o);
+  }
+
+  return picked.sort((a, b) => a.durationSec - b.durationSec).slice(0, 6);
 }

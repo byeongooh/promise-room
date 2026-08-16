@@ -2,47 +2,42 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Bookmark,
   Car,
+  ChevronDown,
   Crosshair,
+  Footprints,
   Loader2,
-  MapPin,
   Navigation,
-  Plus,
   TrainFront,
   Trash2,
 } from "lucide-react";
 
 import type { RouteSegment } from "@/components/promise-map";
-
+import OriginSearch, { type FoundPlace } from "@/components/origin-search";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import LocationPicker, { type PickedLocation } from "@/components/location-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  addMyPlace,
-  listMyPlaces,
-  removeMyPlace,
-  type MyPlace,
-} from "@/lib/my-places";
+import { addMyPlace, listMyPlaces, removeMyPlace, type MyPlace } from "@/lib/my-places";
 
-// 약속 장소까지 얼마나 걸리는지 미리 보여준다.
+// 약속 장소까지 어떻게, 얼마나 걸려 가는지.
 //
-// 출발지는 두 가지다.
-//   - 지금 있는 곳 (위치 권한 필요)
-//   - 내가 지정해둔 곳 (집·회사 등)
-// 소요시간은 자동차 기준이다. 대중교통은 카카오가 API로 열어주지 않아서
-// "길찾기" 버튼으로 카카오맵에 넘긴다.
+// 목적지는 약속 장소로 이미 정해져 있다. 사용자는 출발지만 정하면 되고,
+// 그러면 대중교통·자동차 경로 후보가 빠른 순으로 뜬다. 하나를 누르면
+// 위 지도에 그 길이 그려지고 무엇을 타는지 단계가 펼쳐진다.
 
 const CURRENT = "__current__";
 
 type Origin = { label: string; lat: number; lng: number };
+
+type TransitStep = {
+  kind: "subway" | "bus" | "walk";
+  /** 탈 수 있는 것들. 같은 구간을 가는 버스가 여럿이면 다 들어 있다. */
+  names: string[];
+  color: string | null;
+  from: string | null;
+  to: string | null;
+  stops: number | null;
+  minutes: number;
+};
 
 type TransitOption = {
   durationSec: number;
@@ -51,11 +46,11 @@ type TransitOption = {
   fare: number | null;
   firstStation: string | null;
   mapObj: string | null;
+  steps: TransitStep[];
 };
 
 type Routes = {
   car: { durationSec: number; distanceM: number; path: [number, number][] } | null;
-  /** 빠른 순. 같은 방식은 하나만 들어 있다. */
   transit: TransitOption[] | null;
 };
 
@@ -74,8 +69,47 @@ function formatDistance(m: number): string {
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
 }
 
-/** 경로 한 줄. 누르면 지도에 그려지고, 그려진 줄은 칠해 둔다. */
-function RouteRow({
+/** 무엇을 타고 어디서 갈아타는지. 펼쳤을 때만 보인다. */
+function Steps({ steps }: { steps: TransitStep[] }) {
+  return (
+    <ol className="mt-3 space-y-2.5 border-t border-dashed border-[var(--tk-line)] pt-3">
+      {steps.map((s, i) => (
+        <li key={i} className="flex items-start gap-2.5">
+          {s.kind === "walk" ? (
+            <Footprints className="mt-[3px] size-3.5 shrink-0 text-[var(--tk-faint)]" />
+          ) : (
+            <span className="mt-[2px] flex max-w-[45%] shrink-0 flex-wrap gap-1">
+              {/* 같은 구간을 가는 버스가 여럿이면 다 보여준다. 아무거나 타면 된다. */}
+              {s.names.slice(0, 3).map((n) => (
+                <span
+                  key={n}
+                  className="grid h-[18px] place-items-center rounded px-1.5 text-[10.5px]
+                    font-bold text-white"
+                  style={{ background: s.color ?? (s.kind === "bus" ? "#2C5FE0" : "#5A6784") }}
+                >
+                  {n}
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="tk-caption block text-[var(--tk-sub)]">
+              {s.kind === "walk"
+                ? "걷기"
+                : `${s.from ?? ""} → ${s.to ?? ""}${s.stops ? ` · ${s.stops}정거장` : ""}`}
+            </span>
+          </span>
+          <span className="tk-caption shrink-0 tabular-nums text-[var(--tk-faint)]">
+            {s.minutes}분
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** 경로 한 장. 누르면 지도에 그려지고 단계가 펼쳐진다. */
+function RouteCard({
   icon,
   title,
   detail,
@@ -83,6 +117,7 @@ function RouteRow({
   active,
   busy,
   disabled,
+  steps,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -92,40 +127,45 @@ function RouteRow({
   active: boolean;
   busy: boolean;
   disabled: boolean;
+  steps?: TransitStep[];
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition
-        ${
-          active
-            ? "bg-[var(--tk-ink)] text-[var(--tk-paper)]"
-            : "bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
-        }
-        ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+    <div
+      className={`overflow-hidden rounded-xl transition ${
+        active ? "bg-[var(--tk-hot-bg)] ring-1 ring-[var(--tk-gold)]" : "bg-[var(--tk-ground)]"
+      } ${disabled ? "opacity-50" : ""}`}
     >
-      <span className={active ? "text-[var(--tk-paper)]/80" : "text-[var(--tk-sub)]"}>
-        {busy ? <Loader2 className="size-4 shrink-0 animate-spin" /> : icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="tk-meta block font-bold">{title}</span>
-        <span
-          className={`tk-caption mt-0.5 block truncate ${
-            active ? "text-[var(--tk-paper)]/70" : "text-[var(--tk-faint)]"
-          }`}
-        >
-          {detail}
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-expanded={active}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-not-allowed"
+      >
+        <span className="shrink-0 text-[var(--tk-sub)]">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : icon}
         </span>
-      </span>
-      {active && <MapPin className="size-3.5 shrink-0 opacity-70" />}
-      <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight">
-        {time}
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="tk-meta block font-bold text-[var(--tk-ink)]">{title}</span>
+          <span className="tk-caption mt-0.5 block truncate text-[var(--tk-faint)]">{detail}</span>
+        </span>
+        <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight text-[var(--tk-ink)]">
+          {time}
+        </span>
+        <ChevronDown
+          className={`size-4 shrink-0 text-[var(--tk-faint)] transition-transform ${
+            active ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {active && steps && steps.length > 0 && (
+        <div className="px-4 pb-3.5">
+          <Steps steps={steps} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -143,6 +183,8 @@ export default function TravelTime({
   const [selected, setSelected] = useState<string>(CURRENT);
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [originError, setOriginError] = useState<string | null>(null);
+  /** 검색으로 고른 곳. 저장 버튼을 띄울지 판단하는 데 쓴다. */
+  const [searched, setSearched] = useState<FoundPlace | null>(null);
 
   const [routes, setRoutes] = useState<Routes | null>(null);
   const [routeState, setRouteState] = useState<"idle" | "loading" | "unavailable">("idle");
@@ -157,11 +199,6 @@ export default function TravelTime({
   useEffect(() => {
     onRouteChangeRef.current = onRouteChange;
   }, [onRouteChange]);
-
-  // 장소 추가 대화상자
-  const [adding, setAdding] = useState(false);
-  const [newPlace, setNewPlace] = useState<PickedLocation | null>(null);
-  const [newLabel, setNewLabel] = useState("");
 
   useEffect(() => {
     setPlaces(listMyPlaces());
@@ -188,16 +225,25 @@ export default function TravelTime({
 
   useEffect(() => {
     if (selected === CURRENT) {
+      setSearched(null);
       setOrigin(null);
       useCurrentPosition();
       return;
     }
     const place = places.find((p) => p.id === selected);
     if (place) {
+      setSearched(null);
       setOriginError(null);
       setOrigin({ label: place.label, lat: place.lat, lng: place.lng });
     }
   }, [selected, places, useCurrentPosition]);
+
+  const pickSearched = (place: FoundPlace) => {
+    setSelected("");
+    setSearched(place);
+    setOriginError(null);
+    setOrigin({ label: place.name, lat: place.lat, lng: place.lng });
+  };
 
   // ---------------- 소요시간 ----------------
   // 부모가 destination을 매번 새 객체로 넘겨도 다시 부르지 않도록 좌표 값으로 비교한다.
@@ -228,7 +274,6 @@ export default function TravelTime({
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: Routes) => {
         if (cancelled) return;
-        // 둘 다 못 가져왔으면 보여줄 게 없다.
         if (!data?.car && !data?.transit?.length) {
           setRoutes(null);
           setRouteState("unavailable");
@@ -252,7 +297,7 @@ export default function TravelTime({
   const pick = async (next: Picked) => {
     setDrawError(null);
 
-    // 같은 걸 다시 누르면 끈다 — 눌렀다 뒤로 가는 게 쉬워야 한다.
+    // 같은 걸 다시 누르면 접는다 — 눌렀다 뒤로 가는 게 쉬워야 한다.
     if (next === picked || next === null) {
       setPicked(null);
       onRouteChange?.(null);
@@ -290,40 +335,29 @@ export default function TravelTime({
       });
       const data = (await res.json()) as { segments: RouteSegment[] | null };
       if (!data.segments) {
-        setDrawError("노선 정보를 가져오지 못했습니다.");
-        setPicked(null);
-        onRouteChange?.(null);
+        setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
         return;
       }
       onRouteChange?.(data.segments);
     } catch {
-      setDrawError("노선 정보를 가져오지 못했습니다.");
-      setPicked(null);
-      onRouteChange?.(null);
+      setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
     } finally {
       setDrawing(false);
     }
   };
 
-  // ---------------- 카카오맵으로 넘기기 ----------------
-  // 앱 안에서 못 그리는 것(실시간 교통, 상세 안내)은 지도 앱이 훨씬 잘한다.
-  const kakaoMapUrl = destination
-    ? `https://map.kakao.com/link/to/${encodeURIComponent(destinationName)},${destination.lat},${destination.lng}`
-    : `https://map.kakao.com/link/search/${encodeURIComponent(destinationName)}`;
-
-  const saveNewPlace = () => {
-    if (!newPlace || !newLabel.trim()) return;
+  // ---------------- 저장된 출발지 ----------------
+  const saveSearched = () => {
+    if (!searched) return;
     const saved = addMyPlace({
-      label: newLabel.trim(),
-      address: newPlace.text,
-      lat: newPlace.lat,
-      lng: newPlace.lng,
+      label: searched.name.slice(0, 12),
+      address: searched.address,
+      lat: searched.lat,
+      lng: searched.lng,
     });
     setPlaces(listMyPlaces());
+    setSearched(null);
     setSelected(saved.id);
-    setAdding(false);
-    setNewPlace(null);
-    setNewLabel("");
   };
 
   const deletePlace = (id: string) => {
@@ -332,12 +366,23 @@ export default function TravelTime({
     if (selected === id) setSelected(CURRENT);
   };
 
+  // 앱 안에서 못 하는 것(실시간 도착, 상세 안내)은 지도 앱이 훨씬 잘한다.
+  const kakaoMapUrl = destination
+    ? `https://map.kakao.com/link/to/${encodeURIComponent(destinationName)},${destination.lat},${destination.lng}`
+    : `https://map.kakao.com/link/search/${encodeURIComponent(destinationName)}`;
+
   return (
     <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-      <p className="mb-2.5 tk-label text-[var(--tk-faint)]">얼마나 걸릴까</p>
+      <p className="mb-1 tk-label text-[var(--tk-faint)]">어떻게 갈까</p>
+      <p className="tk-caption mb-3 text-[var(--tk-faint)]">
+        도착지는 <b className="text-[var(--tk-sub)]">{destinationName}</b>로 정해져 있습니다.
+        출발지만 정하세요.
+      </p>
 
-      {/* 출발지 고르기 */}
-      <div className="flex flex-wrap items-center gap-1.5">
+      <OriginSearch onPick={pickSearched} />
+
+      {/* 자주 쓰는 출발지 */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           onClick={() => setSelected(CURRENT)}
@@ -352,7 +397,7 @@ export default function TravelTime({
         </button>
 
         {places.map((p) => (
-          <span key={p.id} className="group relative">
+          <span key={p.id} className="relative">
             <button
               type="button"
               onClick={() => setSelected(p.id)}
@@ -370,23 +415,27 @@ export default function TravelTime({
               onClick={() => deletePlace(p.id)}
               aria-label={`${p.label} 지우기`}
               className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 transition
-                hover:bg-black/10 ${selected === p.id ? "text-[var(--tk-paper)]" : "text-[var(--tk-faint)]"}`}
+                hover:bg-black/10 ${
+                  selected === p.id ? "text-[var(--tk-paper)]" : "text-[var(--tk-faint)]"
+                }`}
             >
               <Trash2 className="size-3" />
             </button>
           </span>
         ))}
 
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="tk-caption flex items-center gap-1 rounded-full border border-dashed
-            border-[var(--tk-line)] px-3 py-2 text-[var(--tk-sub)] transition
-            hover:bg-[var(--tk-ground)]"
-        >
-          <Plus className="size-3.5" />
-          출발지 추가
-        </button>
+        {searched && (
+          <button
+            type="button"
+            onClick={saveSearched}
+            className="tk-caption flex items-center gap-1 rounded-full border border-dashed
+              border-[var(--tk-line)] px-3 py-2 text-[var(--tk-sub)] transition
+              hover:bg-[var(--tk-ground)]"
+          >
+            <Bookmark className="size-3.5" />
+            자주 쓰는 곳으로 저장
+          </button>
+        )}
       </div>
 
       {/* 결과 */}
@@ -405,24 +454,23 @@ export default function TravelTime({
           </p>
         ) : routeState === "loading" ? (
           <p className="tk-meta flex items-center gap-1.5 rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-faint)]">
-            <Loader2 className="size-3.5 animate-spin" />계산 중…
+            <Loader2 className="size-3.5 animate-spin" />경로를 찾는 중…
           </p>
         ) : routeState === "unavailable" || !routes ? (
           <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
-            소요시간을 가져오지 못했습니다.
+            경로를 찾지 못했습니다.
           </p>
         ) : (
           <>
             <p className="tk-caption mb-2 text-[var(--tk-faint)]">
-              {picked === null
-                ? `${origin.label}에서 출발 · 누르면 지도에 길이 보입니다`
-                : `${origin.label}에서 출발 · 다시 누르면 지도를 되돌립니다`}
+              <b className="text-[var(--tk-sub)]">{origin.label}</b>에서 출발 · 누르면 지도에
+              길이 보입니다
             </p>
             <ul className="space-y-1.5">
               {routes.transit?.map((t, i) => (
                 <li key={`${t.mode}-${i}`}>
-                  <RouteRow
-                    icon={<TrainFront className="size-4 shrink-0" />}
+                  <RouteCard
+                    icon={<TrainFront className="size-4" />}
                     title={t.mode}
                     detail={
                       (t.transfers > 0 ? `환승 ${t.transfers}회` : "환승 없음") +
@@ -432,7 +480,8 @@ export default function TravelTime({
                     time={formatDuration(t.durationSec)}
                     active={picked === i}
                     busy={drawing && picked === i}
-                    disabled={!t.mapObj}
+                    disabled={false}
+                    steps={t.steps}
                     onClick={() => pick(i)}
                   />
                 </li>
@@ -440,8 +489,8 @@ export default function TravelTime({
 
               {routes.car && (
                 <li>
-                  <RouteRow
-                    icon={<Car className="size-4 shrink-0" />}
+                  <RouteCard
+                    icon={<Car className="size-4" />}
                     title="자동차"
                     detail={formatDistance(routes.car.distanceM)}
                     time={formatDuration(routes.car.durationSec)}
@@ -473,51 +522,9 @@ export default function TravelTime({
       <Button asChild variant="outline" className="mt-2.5 h-11 w-full">
         <a href={kakaoMapUrl} target="_blank" rel="noreferrer">
           <Navigation className="size-4 mr-1.5" />
-          카카오맵으로 길찾기
+          카카오맵에서 열기
         </a>
       </Button>
-
-      {/* 출발지 추가 */}
-      <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>출발지 추가</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="place-label" className="tk-field-label text-[var(--tk-sub)]">
-              이름
-            </Label>
-            <Input
-              id="place-label"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="집"
-              maxLength={10}
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <LocationPicker onSelect={setNewPlace} />
-
-          {newPlace && (
-            <p className="tk-meta text-[var(--tk-sub)]">고른 곳 · {newPlace.text}</p>
-          )}
-
-          <DialogFooter>
-            <Button
-              onClick={saveNewPlace}
-              disabled={!newPlace || !newLabel.trim()}
-              className="h-11 bg-[var(--tk-gold)] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
-            >
-              저장
-            </Button>
-          </DialogFooter>
-          <p className="tk-caption text-[var(--tk-faint)]">
-            이 기기에만 저장됩니다. 앱으로 옮길 때 계정에 저장되도록 바꿉니다.
-          </p>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }
