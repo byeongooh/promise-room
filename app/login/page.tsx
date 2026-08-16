@@ -15,10 +15,9 @@ import { CityMapBackground, TicketPatternBackground } from "@/components/login-b
 type Background = "map" | "pattern";
 const DEFAULT_BACKGROUND: Background = "map";
 
-const COPY: Record<Background, string> = {
-  map: "어디서 만날지부터 정하세요",
-  pattern: "친구들과의 약속을 한 장의 티켓으로",
-};
+// 부제는 배경과 상관없이 하나로 둔다.
+// 앱이 뭘 해주는지 말하는 자리이지, 분위기를 잡는 자리가 아니다.
+const TAGLINE = "약속을 위한 지도와 티켓";
 
 export default function LoginPage() {
   const [pending, setPending] = useState(false);
@@ -43,7 +42,7 @@ export default function LoginPage() {
           <h1>
             <Wordmark size="lg" />
           </h1>
-          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">{COPY[background]}</p>
+          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">{TAGLINE}</p>
         </div>
 
         <button
