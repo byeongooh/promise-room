@@ -28,6 +28,7 @@ import {
 } from "../../../lib/api-client";
 import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
 import SharePromise from "../../../components/share-promise";
+import TravelTime from "../../../components/travel-time";
 import {
   displayLocation,
   formatWhen,
@@ -496,6 +497,16 @@ export default function PromisePage() {
             {displayLocation(promiseData.location)}
           </p>
         </section>
+
+        {/* 얼마나 걸리는지 */}
+        <TravelTime
+          destination={
+            Number.isFinite(promiseData.locationLat) && Number.isFinite(promiseData.locationLng)
+              ? { lat: promiseData.locationLat as number, lng: promiseData.locationLng as number }
+              : null
+          }
+          destinationName={displayLocation(promiseData.location)}
+        />
 
         {/* 참여자 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
