@@ -132,6 +132,18 @@
   --tk-now-bg: #ffe9e2;     /* 오늘인 약속 스텁 배경 */
   --tk-now-ink: #b8360f;
   --tk-warn: #a2361f;       /* 벌칙 */
+
+  /* 로그인 화면 지도 배경.
+     실제 지도가 아니라 그림이라 색을 여기서 한 벌로 관리한다. */
+  --map-ground: #e7ebf1;
+  --map-block: #dce2eb;     /* 건물 블록 */
+  --map-casing: #cfd8e6;    /* 도로 바깥선 */
+  --map-road: #ffffff;      /* 도로 안쪽 */
+  --map-center: #f0c86b;    /* 중앙선 */
+  --map-water: #c7dcf0;
+  --map-water-line: #b4cfe9;
+  --map-park: #d7e7d2;
+  --map-park-line: #c2d9bc;
 }
 
 .dark {
@@ -147,6 +159,16 @@
   --tk-now-bg: #3d211a;
   --tk-now-ink: #ffb59b;
   --tk-warn: #ff9c82;
+
+  --map-ground: #131a26;
+  --map-block: #1b2333;
+  --map-casing: #232d40;
+  --map-road: #2c384f;
+  --map-center: #6b5a2b;
+  --map-water: #16283d;
+  --map-water-line: #1d3a56;
+  --map-park: #17281c;
+  --map-park-line: #1e3324;
 }
 
 /* ---------------------------------------------------------------

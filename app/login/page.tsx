@@ -1,64 +1,49 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import Wordmark from "@/components/wordmark";
+import { CityMapBackground, TicketPatternBackground } from "@/components/login-background";
 
-// 로그인 화면도 "입장권" 은유를 따른다.
-// 아직 이름이 비어 있는 티켓 한 장을 보여주고, 로그인하면 내 이름이 채워지는 그림.
+// 로그인 화면 배경은 두 안을 만들어 두고 고르는 중이다.
+//   map     — 도시 지도. "어디서 만날지"를 먼저 말한다.
+//   pattern — 흐린 티켓이 흩뿌려진 배경. 더 조용하다.
+// 정하기 전까지는 ?bg=map / ?bg=pattern 으로 폰에서 바로 바꿔 볼 수 있게 둔다.
+type Background = "map" | "pattern";
+const DEFAULT_BACKGROUND: Background = "map";
+
+const COPY: Record<Background, string> = {
+  map: "어디서 만날지부터 정하세요",
+  pattern: "친구들과의 약속을 한 장의 티켓으로",
+};
 
 export default function LoginPage() {
   const [pending, setPending] = useState(false);
+  const [background, setBackground] = useState<Background>(DEFAULT_BACKGROUND);
+
+  // useSearchParams를 쓰면 이 페이지 전체를 Suspense로 감싸야 해서 직접 읽는다.
+  useEffect(() => {
+    const bg = new URLSearchParams(window.location.search).get("bg");
+    if (bg === "map" || bg === "pattern") setBackground(bg);
+  }, []);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[var(--tk-ground)] px-5 py-10">
-      <div className="w-full max-w-sm">
+    // 배경이 보여야 하므로 로그인 뭉치는 화면 아래쪽에 모은다.
+    <main
+      className="relative flex min-h-screen flex-col justify-end overflow-hidden
+        bg-[var(--tk-ground)] px-5 pb-10 pt-10"
+    >
+      {background === "map" ? <CityMapBackground /> : <TicketPatternBackground />}
+
+      <div className="relative z-10 mx-auto w-full max-w-sm">
         <div className="mb-7 text-center">
           <h1>
             <Wordmark size="lg" />
           </h1>
-          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">
-            친구들과의 약속을 한 장의 티켓으로
-          </p>
-        </div>
-
-        {/* 미리보기 티켓 — 로그인 전이라 비어 있는 상태 */}
-        <div
-          aria-hidden="true"
-          className="grid grid-cols-[minmax(0,1fr)_5.25rem] overflow-hidden rounded-xl
-            bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5"
-        >
-          <div className="min-w-0 p-4">
-            <div className="h-[15px] w-32 rounded bg-[var(--tk-ground)]" />
-            <div className="mt-3 space-y-1.5 text-[12.5px] text-[var(--tk-faint)]">
-              <p className="flex items-center gap-1.5">
-                <CalendarDays className="size-3.5 opacity-60" />
-                <span className="h-[10px] w-28 rounded bg-[var(--tk-ground)]" />
-              </p>
-              <p className="flex items-center gap-1.5">
-                <MapPin className="size-3.5 opacity-60" />
-                <span className="h-[10px] w-20 rounded bg-[var(--tk-ground)]" />
-              </p>
-            </div>
-            <div className="mt-3 flex">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="-mr-1.5 size-[21px] rounded-full border-[1.5px]
-                    border-[var(--tk-paper)] bg-[var(--tk-ground)]"
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col items-center justify-center gap-0.5 border-l-2 border-dashed border-[var(--tk-line)]">
-            <span className="text-[21px] font-extrabold leading-none tracking-tight text-[var(--tk-line)]">
-              D-?
-            </span>
-            <span className="text-[10px] font-bold text-[var(--tk-line)]">준비 중</span>
-          </div>
+          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">{COPY[background]}</p>
         </div>
 
         <button
@@ -103,13 +88,23 @@ export default function LoginPage() {
 
         {/* 테스트 관찰용 관리자 화면으로 가는 통로.
             비밀번호가 따로 있어 눌러도 아무나 들어갈 수 없다. */}
-        <div className="mt-10 text-center">
+        <div className="mt-10 flex items-center justify-center gap-3">
           <Link
             href="/admin"
             className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
           >
             관리자
           </Link>
+
+          {/* 배경 고르는 동안만 두는 임시 전환기. 정해지면 지운다. */}
+          <span className="text-[11px] text-[var(--tk-faint)]/30">·</span>
+          <button
+            type="button"
+            onClick={() => setBackground(background === "map" ? "pattern" : "map")}
+            className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
+          >
+            배경 바꾸기 ({background === "map" ? "지도" : "티켓"})
+          </button>
         </div>
       </div>
     </main>
