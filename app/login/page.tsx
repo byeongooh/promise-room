@@ -22,7 +22,7 @@ const BACKGROUNDS: { value: Background; label: string }[] = [
 
 // 부제는 배경과 상관없이 하나로 둔다.
 // 앱이 뭘 해주는지 말하는 자리이지, 분위기를 잡는 자리가 아니다.
-const TAGLINE = "약속을 위한 지도와 티켓";
+const TAGLINE = "약속을 위한 지도 티켓";
 
 export default function LoginPage() {
   const [pending, setPending] = useState(false);
