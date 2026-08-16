@@ -33,15 +33,18 @@ const CURRENT = "__current__";
 
 type Origin = { label: string; lat: number; lng: number };
 
+type TransitOption = {
+  durationSec: number;
+  transfers: number;
+  mode: string;
+  fare: number | null;
+  firstStation: string | null;
+};
+
 type Routes = {
   car: { durationSec: number; distanceM: number } | null;
-  transit: {
-    durationSec: number;
-    transfers: number;
-    mode: string;
-    fare: number | null;
-    firstStation: string | null;
-  } | null;
+  /** 빠른 순. 같은 방식은 하나만 들어 있다. */
+  transit: TransitOption[] | null;
 };
 
 function formatDuration(sec: number): string {
@@ -139,7 +142,7 @@ export default function TravelTime({
       .then((data: Routes) => {
         if (cancelled) return;
         // 둘 다 못 가져왔으면 보여줄 게 없다.
-        if (!data?.car && !data?.transit) {
+        if (!data?.car && !data?.transit?.length) {
           setRoutes(null);
           setRouteState("unavailable");
           return;
@@ -267,46 +270,42 @@ export default function TravelTime({
         ) : (
           <>
             <p className="tk-caption mb-2 text-[var(--tk-faint)]">{origin.label}에서 출발</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {routes.transit && (
-                <div className="rounded-xl bg-[var(--tk-ground)] px-4 py-3">
-                  <p className="tk-caption flex items-center gap-1.5 text-[var(--tk-faint)]">
-                    <TrainFront className="size-3.5" />
-                    {routes.transit.mode}
-                  </p>
-                  <p className="mt-1 text-[19px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
-                    {formatDuration(routes.transit.durationSec)}
-                  </p>
-                  <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
-                    {routes.transit.transfers > 0
-                      ? `환승 ${routes.transit.transfers}회`
-                      : "환승 없음"}
-                    {routes.transit.fare !== null &&
-                      ` · ${routes.transit.fare.toLocaleString("ko-KR")}원`}
-                  </p>
-                  {routes.transit.firstStation && (
+            <ul className="space-y-1.5">
+              {routes.transit?.map((t, i) => (
+                <li
+                  key={`${t.mode}-${i}`}
+                  className="flex items-center gap-3 rounded-xl bg-[var(--tk-ground)] px-4 py-3"
+                >
+                  <TrainFront className="size-4 shrink-0 text-[var(--tk-sub)]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="tk-meta font-bold text-[var(--tk-ink)]">{t.mode}</p>
                     <p className="tk-caption mt-0.5 truncate text-[var(--tk-faint)]">
-                      {routes.transit.firstStation}에서 탑승
+                      {t.transfers > 0 ? `환승 ${t.transfers}회` : "환승 없음"}
+                      {t.fare !== null && ` · ${t.fare.toLocaleString("ko-KR")}원`}
+                      {t.firstStation && ` · ${t.firstStation} 탑승`}
                     </p>
-                  )}
-                </div>
-              )}
+                  </div>
+                  <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight text-[var(--tk-ink)]">
+                    {formatDuration(t.durationSec)}
+                  </span>
+                </li>
+              ))}
 
               {routes.car && (
-                <div className="rounded-xl bg-[var(--tk-ground)] px-4 py-3">
-                  <p className="tk-caption flex items-center gap-1.5 text-[var(--tk-faint)]">
-                    <Car className="size-3.5" />
-                    자동차
-                  </p>
-                  <p className="mt-1 text-[19px] font-extrabold leading-tight tracking-tight text-[var(--tk-ink)]">
+                <li className="flex items-center gap-3 rounded-xl bg-[var(--tk-ground)] px-4 py-3">
+                  <Car className="size-4 shrink-0 text-[var(--tk-sub)]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="tk-meta font-bold text-[var(--tk-ink)]">자동차</p>
+                    <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
+                      {formatDistance(routes.car.distanceM)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight text-[var(--tk-ink)]">
                     {formatDuration(routes.car.durationSec)}
-                  </p>
-                  <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
-                    {formatDistance(routes.car.distanceM)}
-                  </p>
-                </div>
+                  </span>
+                </li>
               )}
-            </div>
+            </ul>
           </>
         )}
       </div>

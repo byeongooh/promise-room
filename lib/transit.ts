@@ -9,7 +9,7 @@ import { DirectionsUnavailable, isPlausibleKoreanCoord, type Coordinate } from "
 
 const ENDPOINT = "https://api.odsay.com/v1/api/searchPubTransPathT";
 
-export interface TransitSummary {
+export interface TransitOption {
   /** 초 (ODsay는 분으로 준다) */
   durationSec: number;
   /** 환승 횟수 */
@@ -96,10 +96,27 @@ async function call(
   };
 }
 
-export async function getTransitRoute(
+function toOption(path: OdsayPath): TransitOption | null {
+  const totalMin = path.info?.totalTime;
+  if (!totalMin) return null;
+  return {
+    durationSec: totalMin * 60,
+    transfers: (path.info?.busTransitCount ?? 0) + (path.info?.subwayTransitCount ?? 0),
+    mode: MODE_BY_PATH_TYPE[path.pathType ?? 0] ?? "대중교통",
+    fare: path.info?.payment ?? null,
+    firstStation: path.info?.firstStartStation ?? null,
+  };
+}
+
+/**
+ * 대중교통 경로 후보를 빠른 순으로 돌려준다.
+ * ODsay는 지하철만/버스만/섞어서 등 여러 개를 주는데, 같은 방식끼리는
+ * 제일 빠른 것 하나만 남긴다 — "지하철 42분, 버스 55분"처럼 고를 거리가 되게.
+ */
+export async function getTransitRoutes(
   origin: Coordinate,
   destination: Coordinate
-): Promise<TransitSummary> {
+): Promise<TransitOption[]> {
   const key = process.env.ODSAY_API_KEY;
   if (!key) throw new DirectionsUnavailable("ODSAY_API_KEY가 없습니다.");
 
@@ -130,17 +147,20 @@ export async function getTransitRoute(
     paths = (await call(origin, destination, key, second)).paths;
   }
 
-  const best = paths[0];
-  const totalMin = best?.info?.totalTime;
-  if (!best || !totalMin) {
+  const options = paths
+    .map(toOption)
+    .filter((o): o is TransitOption => o !== null)
+    .sort((a, b) => a.durationSec - b.durationSec);
+
+  if (options.length === 0) {
     throw new DirectionsUnavailable("대중교통 경로를 찾지 못했습니다.");
   }
 
-  return {
-    durationSec: totalMin * 60,
-    transfers: (best.info?.busTransitCount ?? 0) + (best.info?.subwayTransitCount ?? 0),
-    mode: MODE_BY_PATH_TYPE[best.pathType ?? 0] ?? "대중교통",
-    fare: best.info?.payment ?? null,
-    firstStation: best.info?.firstStartStation ?? null,
-  };
+  const bestPerMode = new Map<string, TransitOption>();
+  for (const o of options) {
+    if (!bestPerMode.has(o.mode)) bestPerMode.set(o.mode, o);
+  }
+
+  // 화면이 좁으므로 세 개까지만 보여준다.
+  return [...bestPerMode.values()].slice(0, 3);
 }

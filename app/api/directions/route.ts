@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { badRequest, withCaller } from "@/lib/api-guard";
 import { getCarRoute, type Coordinate } from "@/lib/directions";
-import { getTransitRoute } from "@/lib/transit";
+import { getTransitRoutes } from "@/lib/transit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export const POST = withCaller(async (_caller, req) => {
 
   const [car, transit] = await Promise.all([
     orNull("자동차", () => getCarRoute(origin, destination)),
-    orNull("대중교통", () => getTransitRoute(origin, destination)),
+    orNull("대중교통", () => getTransitRoutes(origin, destination)),
   ]);
 
   return NextResponse.json({ car, transit }, { headers: { "Cache-Control": "no-store" } });
