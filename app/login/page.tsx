@@ -2,6 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import Link from "next/link";
 import { CalendarDays, MapPin, Loader2 } from "lucide-react";
 
 import Wordmark from "@/components/wordmark";
@@ -99,6 +100,17 @@ export default function LoginPage() {
         <p className="mt-4 text-center text-[12px] leading-relaxed text-[var(--tk-faint)]">
           약속에 참여한 사람만 그 약속을 볼 수 있습니다.
         </p>
+
+        {/* 테스트 관찰용 관리자 화면으로 가는 통로.
+            비밀번호가 따로 있어 눌러도 아무나 들어갈 수 없다. */}
+        <div className="mt-10 text-center">
+          <Link
+            href="/admin"
+            className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
+          >
+            관리자
+          </Link>
+        </div>
       </div>
     </main>
   );
