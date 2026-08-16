@@ -28,8 +28,8 @@ import {
 } from "../../../lib/api-client";
 import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
 import SharePromise from "../../../components/share-promise";
-import TravelTime from "../../../components/travel-time";
-import PromiseMap, { type RouteSegment } from "../../../components/promise-map";
+import TravelTime, { type DrawnRoute } from "../../../components/travel-time";
+import PromiseMap from "../../../components/promise-map";
 import {
   displayLocation,
   formatWhen,
@@ -91,7 +91,7 @@ export default function PromisePage() {
   const [promiseId, setPromiseId] = useState<string>("");
   const [promiseData, setPromiseData] = useState<PromiseData | null>(null);
   // 아래 "얼마나 걸릴까"에서 고른 경로. 위 지도에 그린다.
-  const [mapRoute, setMapRoute] = useState<RouteSegment[] | null>(null);
+  const [mapRoute, setMapRoute] = useState<DrawnRoute | null>(null);
 
   // 매번 새 객체를 만들면 아래 컴포넌트가 소요시간을 다시 계산한다.
   const destinationCoord = useMemo(() => {
@@ -454,13 +454,14 @@ export default function PromisePage() {
           <PromiseMap
             destination={destinationCoord}
             destinationName={displayLocation(promiseData.location)}
-            route={mapRoute}
+            route={mapRoute?.segments ?? null}
+            points={mapRoute?.points ?? null}
             className={`w-full overflow-hidden rounded-xl bg-[var(--tk-ground)] transition-[height]
-              ${mapRoute ? "h-72" : "h-44"}`}
+              ${mapRoute ? "h-[22rem]" : "h-44"}`}
           />
           {mapRoute ? (
             <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              {mapRoute
+              {mapRoute.segments
                 .filter((s) => s.label)
                 .map((s, i) => (
                   <span key={`${s.label}-${i}`} className="flex items-center gap-1.5">

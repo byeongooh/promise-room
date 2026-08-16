@@ -13,7 +13,13 @@ import {
   Trash2,
 } from "lucide-react";
 
-import type { RouteSegment } from "@/components/promise-map";
+import type { RoutePoint, RouteSegment } from "@/components/promise-map";
+
+/** 지도에 넘길 한 벌 — 선과 점을 같이 준다. */
+export interface DrawnRoute {
+  segments: RouteSegment[];
+  points: RoutePoint[];
+}
 import OriginSearch, { type FoundPlace } from "@/components/origin-search";
 import { Button } from "@/components/ui/button";
 import { addMyPlace, listMyPlaces, removeMyPlace, type MyPlace } from "@/lib/my-places";
@@ -35,6 +41,8 @@ type TransitStep = {
   color: string | null;
   from: string | null;
   to: string | null;
+  fromPos: [number, number] | null;
+  toPos: [number, number] | null;
   stops: number | null;
   minutes: number;
 };
@@ -67,6 +75,56 @@ function formatDuration(sec: number): string {
 
 function formatDistance(m: number): string {
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
+}
+
+const BUS_COLOR = "#2C5FE0";
+const ORIGIN_COLOR = "#16233F";
+const ALIGHT_COLOR = "#B8360F";
+
+/**
+ * 경로에서 "여기서 뭘 해야 한다"는 지점을 뽑는다.
+ * 승차 · 환승 · 하차. 어디서 몇 번을 타는지 라벨에 같이 넣는다.
+ */
+function pointsOf(option: TransitOption, origin: Origin): RoutePoint[] {
+  const rides = option.steps.filter((s) => s.kind !== "walk");
+  const points: RoutePoint[] = [
+    {
+      kind: "origin",
+      label: "출발",
+      sublabel: origin.label,
+      color: ORIGIN_COLOR,
+      position: [origin.lng, origin.lat],
+    },
+  ];
+
+  rides.forEach((step, i) => {
+    const vehicle = step.names[0] ?? "";
+    const color = step.color ?? (step.kind === "bus" ? BUS_COLOR : ORIGIN_COLOR);
+
+    if (step.fromPos) {
+      points.push({
+        kind: i === 0 ? "board" : "transfer",
+        label: `${vehicle} ${i === 0 ? "승차" : "환승"}`.trim(),
+        sublabel: step.from,
+        color,
+        position: step.fromPos,
+      });
+    }
+
+    // 마지막 구간에서 내리는 곳만 표시한다. 중간에 내리는 곳은
+    // 바로 다음 환승 지점과 같은 자리라 두 번 찍힌다.
+    if (i === rides.length - 1 && step.toPos) {
+      points.push({
+        kind: "alight",
+        label: "하차",
+        sublabel: step.to,
+        color: ALIGHT_COLOR,
+        position: step.toPos,
+      });
+    }
+  });
+
+  return points;
 }
 
 /** 무엇을 타고 어디서 갈아타는지. 펼쳤을 때만 보인다. */
@@ -177,7 +235,7 @@ export default function TravelTime({
   destination: { lat: number; lng: number } | null;
   destinationName: string;
   /** 고른 경로를 위 지도에 그리도록 넘긴다. null이면 지도를 원래대로 돌린다. */
-  onRouteChange?: (route: RouteSegment[] | null) => void;
+  onRouteChange?: (route: DrawnRoute | null) => void;
 }) {
   const [places, setPlaces] = useState<MyPlace[]>([]);
   const [selected, setSelected] = useState<string>(CURRENT);
@@ -306,12 +364,23 @@ export default function TravelTime({
 
     if (next === "car") {
       const path = routes?.car?.path;
-      if (!path?.length) {
+      if (!path?.length || !origin) {
         setDrawError("자동차 경로를 그릴 수 없습니다.");
         return;
       }
       setPicked("car");
-      onRouteChange?.([{ kind: "car", label: "자동차", color: "#16233F", points: path }]);
+      onRouteChange?.({
+        segments: [{ kind: "car", label: "자동차", color: ORIGIN_COLOR, points: path }],
+        points: [
+          {
+            kind: "origin",
+            label: "출발",
+            sublabel: origin.label,
+            color: ORIGIN_COLOR,
+            position: [origin.lng, origin.lat],
+          },
+        ],
+      });
       return;
     }
 
@@ -338,7 +407,7 @@ export default function TravelTime({
         setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
         return;
       }
-      onRouteChange?.(data.segments);
+      onRouteChange?.({ segments: data.segments, points: pointsOf(option, origin) });
     } catch {
       setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
     } finally {

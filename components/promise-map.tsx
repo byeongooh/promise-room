@@ -15,6 +15,18 @@ export interface RouteSegment {
   points: [number, number][];
 }
 
+/** 지도에 찍는 점. 승차·환승·하차처럼 "여기서 뭘 해야 하는 곳". */
+export interface RoutePoint {
+  kind: "origin" | "board" | "transfer" | "alight";
+  /** "5531 승차", "2호선 환승" 처럼 무엇을 하는지 */
+  label: string;
+  /** 정류장·역 이름 */
+  sublabel?: string | null;
+  color: string;
+  /** [경도, 위도] */
+  position: [number, number];
+}
+
 type KakaoNS = {
   maps: {
     load: (cb: () => void) => void;
@@ -24,6 +36,7 @@ type KakaoNS = {
     Marker: new (opts: unknown) => KakaoOverlay;
     InfoWindow: new (opts: unknown) => { open: (m: KakaoMap, mk: KakaoOverlay) => void; close: () => void };
     Polyline: new (opts: unknown) => KakaoOverlay;
+    CustomOverlay: new (opts: unknown) => KakaoOverlay;
     services?: {
       Places: new () => { keywordSearch: (kw: string, cb: (r: KakaoPlace[], s: string) => void) => void };
       Status: { OK: string };
@@ -46,22 +59,47 @@ function kakaoNS(): KakaoNS | null {
   return k?.maps ? k : null;
 }
 
+/** 승차·환승·하차 점 하나의 생김새. 지도 위에서 확실히 눈에 띄어야 한다. */
+function pointMarkup(p: RoutePoint): string {
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const sub = p.sublabel
+    ? `<span style="display:block;font-size:10.5px;color:#5A6784;margin-top:1px">${escape(p.sublabel)}</span>`
+    : "";
+
+  return `
+    <div style="display:flex;align-items:center;gap:6px;transform:translate(-9px,-50%);white-space:nowrap">
+      <span style="width:18px;height:18px;border-radius:50%;background:${p.color};
+                   border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);flex:none"></span>
+      <span style="background:#fff;border-radius:8px;padding:4px 8px;
+                   box-shadow:0 2px 8px rgba(22,35,63,.25);line-height:1.25">
+        <span style="display:block;font-size:11.5px;font-weight:800;color:#16233F">${escape(p.label)}</span>
+        ${sub}
+      </span>
+    </div>`;
+}
+
 export default function PromiseMap({
   destination,
   destinationName,
   route,
+  points,
   className = "h-44 w-full overflow-hidden rounded-xl bg-[var(--tk-ground)]",
 }: {
   destination: { lat: number; lng: number } | null;
   destinationName: string;
   /** 그릴 경로. null이면 목적지만 보여준다. */
   route?: RouteSegment[] | null;
+  /** 승차·환승·하차 점 */
+  points?: RoutePoint[] | null;
   className?: string;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const markerRef = useRef<KakaoOverlay | null>(null);
   const linesRef = useRef<KakaoOverlay[]>([]);
+  const pointsRef = useRef<KakaoOverlay[]>([]);
 
   // ---------------- 지도 만들기 + 목적지 표시 ----------------
   useEffect(() => {
@@ -137,30 +175,53 @@ export default function PromiseMap({
       if (path.length < 2) continue;
 
       // 선 아래에 흰 테두리를 한 겹 깔면 지도 위에서 훨씬 잘 보인다.
-      if (seg.kind !== "walk") {
-        const casing = new kakao.maps.Polyline({
-          map,
-          path,
-          strokeWeight: 9,
-          strokeColor: "#FFFFFF",
-          strokeOpacity: 0.9,
-        });
-        linesRef.current.push(casing);
-      }
+      const casing = new kakao.maps.Polyline({
+        map,
+        path,
+        strokeWeight: seg.kind === "walk" ? 8 : 13,
+        strokeColor: "#FFFFFF",
+        strokeOpacity: 0.95,
+      });
+      linesRef.current.push(casing);
 
       const line = new kakao.maps.Polyline({
         map,
         path,
-        strokeWeight: seg.kind === "walk" ? 4 : 5,
+        strokeWeight: seg.kind === "walk" ? 5 : 8,
         strokeColor: seg.color,
-        strokeOpacity: seg.kind === "walk" ? 0.85 : 1,
+        strokeOpacity: 1,
         strokeStyle: seg.kind === "walk" ? "shortdash" : "solid",
       });
       linesRef.current.push(line);
     }
 
-    if (!bounds.isEmpty()) map.setBounds(bounds, 24, 24, 24, 24);
+    if (!bounds.isEmpty()) map.setBounds(bounds, 30, 30, 30, 30);
   }, [route, destination]);
+
+  // ---------------- 승차·환승·하차 점 ----------------
+  useEffect(() => {
+    const kakao = kakaoNS();
+    const map = mapRef.current;
+    if (!kakao || !map) return;
+
+    pointsRef.current.forEach((o) => o.setMap(null));
+    pointsRef.current = [];
+    if (!points?.length) return;
+
+    for (const p of points) {
+      const overlay = new kakao.maps.CustomOverlay({
+        map,
+        position: new kakao.maps.LatLng(p.position[1], p.position[0]),
+        content: pointMarkup(p),
+        // 선 위에 오도록 올린다.
+        zIndex: 5,
+        // 기본값은 가운데 정렬이라 라벨이 점을 가린다. 왼쪽 기준으로 붙인다.
+        xAnchor: 0,
+        yAnchor: 0.5,
+      });
+      pointsRef.current.push(overlay);
+    }
+  }, [points]);
 
   return <div ref={boxRef} className={className} />;
 }

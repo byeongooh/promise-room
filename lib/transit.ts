@@ -31,6 +31,9 @@ export interface TransitStep {
   color: string | null;
   from: string | null;
   to: string | null;
+  /** 타는 곳·내리는 곳 좌표 [경도, 위도]. 지도에 점을 찍는 데 쓴다. */
+  fromPos: [number, number] | null;
+  toPos: [number, number] | null;
   /** 정거장 수. 걷는 단계는 null */
   stops: number | null;
   minutes: number;
@@ -76,6 +79,10 @@ type OdsayPath = {
     stationCount?: number;
     startName?: string;
     endName?: string;
+    startX?: number;
+    startY?: number;
+    endX?: number;
+    endY?: number;
     lane?: { name?: string; busNo?: string; subwayCode?: number }[];
   }[];
 };
@@ -232,6 +239,8 @@ function toSteps(path: OdsayPath): TransitStep[] {
           color: null,
           from: null,
           to: null,
+          fromPos: null,
+          toPos: null,
           stops: null,
           minutes,
         });
@@ -253,6 +262,14 @@ function toSteps(path: OdsayPath): TransitStep[] {
       color: isSubway ? (SUBWAY_COLOR[name] ?? null) : null,
       from: s.startName ?? null,
       to: s.endName ?? null,
+      fromPos:
+        Number.isFinite(s.startX) && Number.isFinite(s.startY)
+          ? [s.startX as number, s.startY as number]
+          : null,
+      toPos:
+        Number.isFinite(s.endX) && Number.isFinite(s.endY)
+          ? [s.endX as number, s.endY as number]
+          : null,
       stops: s.stationCount ?? null,
       minutes,
     });
