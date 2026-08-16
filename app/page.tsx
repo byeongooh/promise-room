@@ -29,7 +29,7 @@ import {
   sortByWhen,
 } from "@/lib/promise-time";
 import { getParticipantNames } from "@/lib/promise-permissions";
-import { getSamplePromise } from "@/lib/sample-promise";
+import EmptyPromises from "@/components/empty-promises";
 
 import { Button } from "../components/ui/button";
 import {
@@ -71,9 +71,6 @@ export default function HomePage() {
 
   const currentUserId = session?.user?.id;
   const { ready: firebaseReady } = useFirebaseAuth();
-
-  // 약속이 하나도 없을 때 보여줄 예시. 저장되지 않고 화면에서만 만든다.
-  const samplePromise = useMemo(() => getSamplePromise(), []);
 
   const [promises, setPromises] = useState<PromiseDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -290,28 +287,7 @@ export default function HomePage() {
             </Button>
           </div>
         ) : promises.length === 0 ? (
-          <div className="flex flex-col gap-3">
-            <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-10 text-center shadow-sm ring-1 ring-black/5">
-              <div className="mb-2 text-3xl">🎟️</div>
-              <h2 className="tk-title mb-1 text-[var(--tk-ink)]">아직 약속이 없습니다</h2>
-              <p className="tk-meta mx-auto mb-5 max-w-[26ch] text-balance break-keep text-[var(--tk-sub)]">
-                참여한 약속만 여기에 표시됩니다. 새로 만들거나 친구에게 받은 링크로 참여하세요.
-              </p>
-              <Link href="/create">
-                <Button className="h-11 bg-[var(--tk-gold)] px-4 text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
-                  <PlusCircle className="w-4 h-4 mr-1.5" />
-                  새 약속 만들기
-                </Button>
-              </Link>
-            </div>
-
-            {/* 약속이 어떻게 보이는지 알려주는 예시 한 장.
-                저장된 약속이 아니라 화면에서만 만든 것이라 누를 수 없다. */}
-            <p className="mt-3 px-1 tk-label text-[var(--tk-faint)]">
-              약속을 만들면 이렇게 보입니다
-            </p>
-            <PromiseTicket promise={samplePromise} onOpen={() => {}} example />
-          </div>
+          <EmptyPromises />
         ) : (
           <div className="flex flex-col gap-3">
             {upcoming.length > 0 && (

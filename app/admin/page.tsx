@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PromiseTicket from "@/components/promise-ticket";
+import EmptyPromises from "@/components/empty-promises";
 import { getCountdown, getPromiseDate, sortByWhen } from "@/lib/promise-time";
-import { getSamplePromise } from "@/lib/sample-promise";
 import type { PromiseData } from "@/lib/types";
 
 // 테스트 관찰용 관리자 화면. 카카오 로그인과 무관하게 동작한다.
@@ -28,6 +28,10 @@ type AdminPromise = {
 };
 
 type AdminUser = { uid: string; name: string; created: number; joined: number };
+
+// 실제 사용자가 아니라 "막 가입한 사람" 화면을 보기 위한 자리표.
+// uid 형식(kakao:숫자)과 겹치지 않는 값이라 실제 사용자와 헷갈릴 일이 없다.
+const NEW_USER = "__new__";
 
 type AdminData = {
   total: number;
@@ -197,6 +201,21 @@ export default function AdminPage() {
             >
               전체 약속
             </button>
+
+            {/* 목록의 사람들은 모두 약속이 1건 이상이라(약속에서 뽑아낸 목록이므로)
+                갓 가입한 사람 화면은 여기서 볼 수 없다. 그래서 따로 둔다. */}
+            <button
+              type="button"
+              onClick={() => setViewAs(NEW_USER)}
+              className={`tk-caption rounded-full px-3 py-2 transition ${
+                viewAs === NEW_USER
+                  ? "bg-[var(--tk-ink)] font-bold text-[var(--tk-paper)]"
+                  : "bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
+              }`}
+            >
+              새 사용자
+            </button>
+
             {data.users.map((u) => (
               <button
                 key={u.uid}
@@ -215,7 +234,18 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {viewAs && asUser ? (
+        {viewAs === NEW_USER ? (
+          /* ---------- 막 가입한 사람에게 보이는 화면 ---------- */
+          <section>
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-[var(--tk-hot-bg)] px-3.5 py-2.5">
+              <Eye className="size-4 shrink-0 text-[var(--tk-hot-ink)]" />
+              <p className="tk-caption min-w-0 text-[var(--tk-hot-ink)]">
+                <b>막 가입한 사람</b>에게 보이는 화면 · 약속 0건
+              </p>
+            </div>
+            <EmptyPromises />
+          </section>
+        ) : viewAs && asUser ? (
           /* ---------- 특정 사용자에게 보이는 화면 ---------- */
           <section>
             <div className="mb-3 flex items-center gap-2 rounded-xl bg-[var(--tk-hot-bg)] px-3.5 py-2.5">
@@ -229,20 +259,7 @@ export default function AdminPage() {
             </div>
 
             {visible.upcoming.length === 0 && visible.past.length === 0 ? (
-              <div className="flex flex-col gap-3">
-                <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-10 text-center shadow-sm ring-1 ring-black/5">
-                  <div className="mb-2 text-3xl">🎟️</div>
-                  <p className="tk-title text-[var(--tk-ink)]">보이는 약속이 없습니다</p>
-                  <p className="tk-meta mt-1 text-[var(--tk-sub)]">
-                    이 사람은 아직 어떤 약속에도 참여하지 않았습니다.
-                  </p>
-                </div>
-                {/* 실제 화면과 같게, 약속이 없는 사람에게는 예시 한 장이 보인다 */}
-                <p className="mt-3 px-1 tk-label text-[var(--tk-faint)]">
-                  약속을 만들면 이렇게 보입니다
-                </p>
-                <PromiseTicket promise={getSamplePromise()} onOpen={() => {}} example />
-              </div>
+              <EmptyPromises />
             ) : (
               <div className="flex flex-col gap-3">
                 {visible.upcoming.length > 0 && (
