@@ -15,6 +15,11 @@ import { CityMapBackground, TicketPatternBackground } from "@/components/login-b
 type Background = "map" | "pattern";
 const DEFAULT_BACKGROUND: Background = "map";
 
+const BACKGROUNDS: { value: Background; label: string }[] = [
+  { value: "map", label: "지도" },
+  { value: "pattern", label: "티켓" },
+];
+
 // 부제는 배경과 상관없이 하나로 둔다.
 // 앱이 뭘 해주는지 말하는 자리이지, 분위기를 잡는 자리가 아니다.
 const TAGLINE = "약속을 위한 지도와 티켓";
@@ -87,23 +92,40 @@ export default function LoginPage() {
 
         {/* 테스트 관찰용 관리자 화면으로 가는 통로.
             비밀번호가 따로 있어 눌러도 아무나 들어갈 수 없다. */}
-        <div className="mt-10 flex items-center justify-center gap-3">
+        {/* 배경 고르는 동안만 두는 임시 전환기. 정해지면 통째로 지운다. */}
+        <div
+          role="group"
+          aria-label="배경 고르기"
+          className="mx-auto mt-8 flex w-fit gap-1 rounded-full bg-[var(--tk-paper)]/70 p-1
+            ring-1 ring-[var(--tk-line)] backdrop-blur-sm"
+        >
+          {BACKGROUNDS.map(({ value, label }) => {
+            const on = background === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setBackground(value)}
+                className={`rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
+                  on
+                    ? "bg-[var(--tk-ink)] font-bold text-[var(--tk-paper)]"
+                    : "font-medium text-[var(--tk-sub)] hover:bg-[var(--tk-ground)]"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 text-center">
           <Link
             href="/admin"
             className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
           >
             관리자
           </Link>
-
-          {/* 배경 고르는 동안만 두는 임시 전환기. 정해지면 지운다. */}
-          <span className="text-[11px] text-[var(--tk-faint)]/30">·</span>
-          <button
-            type="button"
-            onClick={() => setBackground(background === "map" ? "pattern" : "map")}
-            className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
-          >
-            배경 바꾸기 ({background === "map" ? "지도" : "티켓"})
-          </button>
         </div>
       </div>
     </main>
