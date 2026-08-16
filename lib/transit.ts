@@ -44,6 +44,8 @@ type OdsayPath = {
     totalPayment?: number;
     transitCount?: number;
     firstStartStation?: string;
+    /** 실제로 이동하는 거리(m). 목적지까지 가는 경로인지 가늠하는 데 쓴다. */
+    totalDistance?: number;
   };
   subPath?: { trafficType?: number }[];
 };
@@ -80,8 +82,6 @@ function straightDistanceM(a: Coordinate, b: Coordinate): number {
 
 type OdsayResult = {
   paths: OdsayPath[];
-  /** 1이면 "이건 도시 안 이동이 아니다"라는 신호. 도시간으로 다시 물어봐야 한다. */
-  needsIntercity: boolean;
 };
 
 async function call(
@@ -115,7 +115,7 @@ async function call(
 
   const data = (await res.json()) as {
     error?: { code?: string; msg?: string } | { code?: string; msg?: string }[];
-    result?: { path?: OdsayPath[]; outTrafficCheck?: number };
+    result?: { path?: OdsayPath[] };
   };
 
   if (data.error) {
@@ -123,10 +123,7 @@ async function call(
     throw new DirectionsUnavailable(`ODsay ${e?.code ?? ""} ${e?.msg ?? ""}`.trim());
   }
 
-  return {
-    paths: data.result?.path ?? [],
-    needsIntercity: data.result?.outTrafficCheck === 1,
-  };
+  return { paths: data.result?.path ?? [] };
 }
 
 function toOption(path: OdsayPath): TransitOption | null {
@@ -174,28 +171,30 @@ export async function getTransitRoutes(
     throw new DirectionsUnavailable("좌표가 올바르지 않습니다.");
   }
 
-  // ODsay는 도시 안(0)과 도시 간(1)을 따로 요구한다.
-  //   도시 안  — 지하철·시내버스
-  //   도시 간  — 고속/시외버스·기차
-  // 어느 쪽인지 미리 알 수 없으므로 직선거리로 먼저 찍고, 아니면 반대쪽으로
-  // 한 번 더 물어본다. 다시 물어보는 조건은 세 가지다.
-  //   ① 오류가 났다  ② 경로가 하나도 없다  ③ outTrafficCheck=1 (도시 안이 아니라는 신호)
-  const first: 0 | 1 = straightDistanceM(origin, destination) > 40_000 ? 1 : 0;
-  const second: 0 | 1 = first === 0 ? 1 : 0;
+  // ODsay는 검색을 둘로 나눈다.
+  //   도시 안(0) — 지하철·시내버스. 출발지에서 목적지까지 끝까지 안내한다.
+  //   도시 간(1) — 기차·고속/시외버스. 역과 역 사이만 안내한다.
+  //
+  // 도시 안은 언제나 부른다. 도시 간은 정말 먼 거리일 때만 보탠다.
+  //
+  // 도시 간을 가까운 거리에 섞으면 안 된다. 안양(19km)에서 잠실을 물었더니
+  // "안양→영등포 기차 11분", "안양→서울역 기차 23분"을 준다. 잠실에 가지도
+  // 않는 경로다. 역까지 가고 역에서 나오는 시간이 빠져 있어 늘 짧게 나오고,
+  // 이동 거리로도 걸러지지 않는다(서울역행은 직선거리보다 오히려 길다).
+  //
+  // 반대로 서울→대전을 도시 안으로만 보면 "시내버스 252분"이 나온다.
+  // 그래서 먼 거리에서는 둘 다 봐야 한다.
+  const straight = straightDistanceM(origin, destination);
+  const FAR = 40_000;
 
-  let paths: OdsayPath[] = [];
-  try {
-    const r = await call(origin, destination, key, first);
-    if (r.paths.length > 0 && !r.needsIntercity) {
-      paths = r.paths;
-    }
-  } catch {
-    /* 아래에서 반대쪽으로 다시 물어본다 */
-  }
+  const [inCity, intercity] = await Promise.all([
+    call(origin, destination, key, 0).catch(() => ({ paths: [] as OdsayPath[] })),
+    straight > FAR
+      ? call(origin, destination, key, 1).catch(() => ({ paths: [] as OdsayPath[] }))
+      : Promise.resolve({ paths: [] as OdsayPath[] }),
+  ]);
 
-  if (paths.length === 0) {
-    paths = (await call(origin, destination, key, second)).paths;
-  }
+  const paths = [...inCity.paths, ...intercity.paths];
 
   const options = paths
     .map(toOption)

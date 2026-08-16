@@ -23,6 +23,9 @@ console.log(`Referer  · ${REFERER}\n`);
 // 앱에서 실제로 겪을 두 경우(도시내·도시간)를 다 건드려 보기 위함.
 const CASES = [
   { name: "서울 안 · 성수역 → 강남역", sx: 127.0557, sy: 37.5446, ex: 127.0276, ey: 37.4979 },
+  // 도시 경계를 넘지만 전철로 가는 경우. 도시 간 검색으로 새면
+  // "안양→영등포 기차 11분"처럼 목적지에 닿지도 않는 답이 나온다.
+  { name: "경계 넘음 · 안양역 → 롯데월드", sx: 126.9226, sy: 37.4018, ex: 127.098, ey: 37.5111 },
   { name: "지방 · 서울역 → 부산역", sx: 126.9707, sy: 37.5547, ex: 129.0417, ey: 35.1151 },
   { name: "지방 · 서울역 → 대전역", sx: 126.9707, sy: 37.5547, ex: 127.4348, ey: 36.3315 },
 ];
@@ -69,27 +72,20 @@ async function call({ sx, sy, ex, ey }, searchType) {
     const e = Array.isArray(data.error) ? data.error[0] : data.error;
     return { error: `${e.code ?? ""} ${e.msg ?? ""}`.trim() };
   }
-  return {
-    paths: data.result?.path ?? [],
-    needsIntercity: data.result?.outTrafficCheck === 1,
-  };
+  return { paths: data.result?.path ?? [] };
 }
 
 let failed = 0;
 
 for (const c of CASES) {
-  // 앱과 같은 순서로 시도한다: 거리로 찍고, 아니면 반대쪽.
-  const far =
-    Math.hypot((c.ex - c.sx) * 88_000, (c.ey - c.sy) * 111_000) > 40_000;
-  const first = far ? 1 : 0;
+  // 앱과 같게: 도시 안은 늘 보고, 40km가 넘을 때만 도시 간을 보탠다.
+  const straight = Math.hypot((c.ex - c.sx) * 88_000, (c.ey - c.sy) * 111_000);
+  const far = straight > 40_000;
 
-  let r = await call(c, first);
-  let used = first;
-
-  if (r.error || !r.paths?.length || r.needsIntercity) {
-    used = first === 0 ? 1 : 0;
-    r = await call(c, used);
-  }
+  const a = await call(c, 0);
+  const b = far ? await call(c, 1) : { paths: [] };
+  const used = far ? "0+1" : "0";
+  const r = { paths: [...(a.paths ?? []), ...(b.paths ?? [])], error: a.error && b.error };
 
   if (r.error || !r.paths?.length) {
     console.log(`✗ ${c.name}\n   ${r.error ?? "경로 없음"}\n`);
