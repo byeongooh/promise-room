@@ -27,7 +27,26 @@ const CASES = [
   { name: "지방 · 서울역 → 대전역", sx: 126.9707, sy: 37.5547, ex: 127.4348, ey: 36.3315 },
 ];
 
-const MODE = { 1: "지하철", 2: "버스", 3: "버스+지하철" };
+// lib/transit.ts와 같은 규칙. 도보(3)는 이름에서 빼고, 항공·해운은 아예 제외한다.
+const TRAFFIC = { 1: "지하철", 2: "버스", 4: "기차", 5: "고속버스", 6: "시외버스", 7: "항공", 8: "해운" };
+const EXCLUDED = new Set([7, 8]);
+
+function describe(path) {
+  const types = [...new Set((path.subPath ?? []).map((s) => s.trafficType).filter((t) => t && t !== 3))];
+  if (types.some((t) => EXCLUDED.has(t))) return null;
+  const info = path.info;
+  const fare = info.payment ?? info.totalPayment ?? 0;
+  const transfers =
+    info.busTransitCount !== undefined || info.subwayTransitCount !== undefined
+      ? (info.busTransitCount ?? 0) + (info.subwayTransitCount ?? 0)
+      : Math.max(0, (info.transitCount ?? 1) - 1);
+  return {
+    mode: types.map((t) => TRAFFIC[t]).filter(Boolean).join("+") || "대중교통",
+    min: info.totalTime,
+    transfers,
+    fare,
+  };
+}
 
 async function call({ sx, sy, ex, ey }, searchType) {
   const p = new URLSearchParams({
@@ -78,16 +97,30 @@ for (const c of CASES) {
     continue;
   }
 
-  const best = [...r.paths].sort((a, b) => a.info.totalTime - b.info.totalTime)[0];
-  const modes = [...new Set(r.paths.map((p) => MODE[p.pathType] ?? "기타"))];
+  const options = r.paths
+    .map(describe)
+    .filter(Boolean)
+    .sort((a, b) => a.min - b.min);
 
-  console.log(`✓ ${c.name}  (SearchType=${used})`);
-  console.log(
-    `   ${MODE[best.pathType] ?? "대중교통"} ${best.info.totalTime}분 · ` +
-      `환승 ${(best.info.busTransitCount ?? 0) + (best.info.subwayTransitCount ?? 0)}회 · ` +
-      `${(best.info.payment ?? 0).toLocaleString("ko-KR")}원`
-  );
-  console.log(`   후보 ${r.paths.length}개 · 방식 ${modes.join(", ")}\n`);
+  if (options.length === 0) {
+    console.log(`✗ ${c.name}\n   쓸 수 있는 경로 없음 (항공·해운만 나옴)\n`);
+    failed += 1;
+    continue;
+  }
+
+  // 앱과 같게: 같은 방식은 제일 빠른 것만, 최대 3개.
+  const bestPerMode = new Map();
+  for (const o of options) if (!bestPerMode.has(o.mode)) bestPerMode.set(o.mode, o);
+  const shown = [...bestPerMode.values()].slice(0, 3);
+
+  console.log(`✓ ${c.name}  (SearchType=${used}, 후보 ${r.paths.length}개)`);
+  for (const o of shown) {
+    console.log(
+      `   ${o.mode} ${o.min}분 · 환승 ${o.transfers}회` +
+        (o.fare > 0 ? ` · ${o.fare.toLocaleString("ko-KR")}원` : "")
+    );
+  }
+  console.log();
 }
 
 if (failed > 0) {

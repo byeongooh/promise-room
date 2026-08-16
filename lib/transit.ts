@@ -36,18 +36,34 @@ type OdsayPath = {
   pathType?: number;
   info?: {
     totalTime?: number;
+    /** 도시 안 */
     payment?: number;
     busTransitCount?: number;
     subwayTransitCount?: number;
+    /** 도시 간 — 이름이 다르다 */
+    totalPayment?: number;
+    transitCount?: number;
     firstStartStation?: string;
   };
+  subPath?: { trafficType?: number }[];
 };
 
-const MODE_BY_PATH_TYPE: Record<number, string> = {
+// 구간의 교통수단. 경로 종류(pathType)는 도시 안(1~3)과 도시 간(11~13)이
+// 따로 놀아서, 구간 정보로 이름을 만드는 편이 확실하다.
+const TRAFFIC_LABEL: Record<number, string> = {
   1: "지하철",
   2: "버스",
-  3: "버스+지하철",
+  // 3은 도보. 어느 경로에나 끼어 있어 이름에 넣지 않는다.
+  4: "기차",
+  5: "고속버스",
+  6: "시외버스",
+  7: "항공",
+  8: "해운",
 };
+
+// 비행기와 배는 빼고 보여준다. 공항·항구까지 가는 시간이 빠져 있어
+// "서울→부산 65분" 같은 숫자가 나오는데, 약속 시간을 이걸로 잡으면 큰일 난다.
+const EXCLUDED_TRAFFIC = new Set([7, 8]);
 
 /** 두 좌표 사이 직선거리(m). 도시 안인지 도시 간인지 어림잡는 데 쓴다. */
 function straightDistanceM(a: Coordinate, b: Coordinate): number {
@@ -114,14 +130,31 @@ async function call(
 }
 
 function toOption(path: OdsayPath): TransitOption | null {
-  const totalMin = path.info?.totalTime;
+  const info = path.info;
+  const totalMin = info?.totalTime;
   if (!totalMin) return null;
+
+  // 도보(3)를 뺀 실제 교통수단들. 중복은 없앤다.
+  const types = [
+    ...new Set((path.subPath ?? []).map((s) => s.trafficType).filter((t): t is number => !!t && t !== 3)),
+  ];
+  if (types.some((t) => EXCLUDED_TRAFFIC.has(t))) return null;
+
+  const mode = types.map((t) => TRAFFIC_LABEL[t]).filter(Boolean).join("+") || "대중교통";
+
+  // 도시 안과 도시 간이 서로 다른 이름을 쓴다.
+  const fare = info.payment ?? info.totalPayment ?? null;
+  const transfers =
+    info.busTransitCount !== undefined || info.subwayTransitCount !== undefined
+      ? (info.busTransitCount ?? 0) + (info.subwayTransitCount ?? 0)
+      : (info.transitCount ?? 1) - 1; // 도시 간은 "탄 횟수"라 1을 뺀다
+
   return {
     durationSec: totalMin * 60,
-    transfers: (path.info?.busTransitCount ?? 0) + (path.info?.subwayTransitCount ?? 0),
-    mode: MODE_BY_PATH_TYPE[path.pathType ?? 0] ?? "대중교통",
-    fare: path.info?.payment ?? null,
-    firstStation: path.info?.firstStartStation ?? null,
+    transfers: Math.max(0, transfers),
+    mode,
+    fare: fare && fare > 0 ? fare : null,
+    firstStation: info.firstStartStation ?? null,
   };
 }
 
