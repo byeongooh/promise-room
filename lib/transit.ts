@@ -30,6 +30,8 @@ export interface TransitOption {
   fare: number | null;
   /** 첫 정류장/역 이름. 모르면 null */
   firstStation: string | null;
+  /** 이 경로를 지도에 그릴 때 필요한 열쇠. 없으면 그릴 수 없다. */
+  mapObj: string | null;
 }
 
 type OdsayPath = {
@@ -46,6 +48,8 @@ type OdsayPath = {
     firstStartStation?: string;
     /** 실제로 이동하는 거리(m). 목적지까지 가는 경로인지 가늠하는 데 쓴다. */
     totalDistance?: number;
+    /** 노선 좌표를 받아올 때 쓰는 열쇠 */
+    mapObj?: string;
   };
   subPath?: { trafficType?: number }[];
 };
@@ -152,6 +156,7 @@ function toOption(path: OdsayPath): TransitOption | null {
     mode,
     fare: fare && fare > 0 ? fare : null,
     firstStation: info.firstStartStation ?? null,
+    mapObj: info.mapObj ?? null,
   };
 }
 

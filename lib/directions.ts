@@ -20,6 +20,8 @@ export interface RouteSummary {
   durationSec: number;
   /** 미터 */
   distanceM: number;
+  /** 지도에 그릴 경로. [경도, 위도] 순서다. */
+  path: [number, number][];
 }
 
 export class DirectionsUnavailable extends Error {}
@@ -75,6 +77,7 @@ export async function getCarRoute(
       result_code?: number;
       result_msg?: string;
       summary?: { duration?: number; distance?: number };
+      sections?: { roads?: { vertexes?: number[] }[] }[];
     }[];
   };
 
@@ -84,8 +87,18 @@ export async function getCarRoute(
     throw new DirectionsUnavailable(route?.result_msg ?? "경로를 찾지 못했습니다.");
   }
 
+  // 도로 조각마다 좌표가 [x1,y1,x2,y2,…] 한 줄로 들어 있다. 짝지어 편다.
+  const path: [number, number][] = [];
+  for (const section of route.sections ?? []) {
+    for (const road of section.roads ?? []) {
+      const v = road.vertexes ?? [];
+      for (let i = 0; i + 1 < v.length; i += 2) path.push([v[i], v[i + 1]]);
+    }
+  }
+
   return {
     durationSec: route.summary.duration ?? 0,
     distanceM: route.summary.distance ?? 0,
+    path,
   };
 }

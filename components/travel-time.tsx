@@ -1,7 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Car, Crosshair, Loader2, Navigation, Plus, TrainFront, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Car,
+  Crosshair,
+  Loader2,
+  MapPin,
+  Navigation,
+  Plus,
+  TrainFront,
+  Trash2,
+} from "lucide-react";
+
+import type { RouteSegment } from "@/components/promise-map";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,13 +50,17 @@ type TransitOption = {
   mode: string;
   fare: number | null;
   firstStation: string | null;
+  mapObj: string | null;
 };
 
 type Routes = {
-  car: { durationSec: number; distanceM: number } | null;
+  car: { durationSec: number; distanceM: number; path: [number, number][] } | null;
   /** 빠른 순. 같은 방식은 하나만 들어 있다. */
   transit: TransitOption[] | null;
 };
+
+/** 지금 지도에 그리고 있는 것. 자동차는 "car", 대중교통은 목록에서의 순번. */
+type Picked = "car" | number | null;
 
 function formatDuration(sec: number): string {
   const min = Math.round(sec / 60);
@@ -59,12 +74,70 @@ function formatDistance(m: number): string {
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
 }
 
+/** 경로 한 줄. 누르면 지도에 그려지고, 그려진 줄은 칠해 둔다. */
+function RouteRow({
+  icon,
+  title,
+  detail,
+  time,
+  active,
+  busy,
+  disabled,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  time: string;
+  active: boolean;
+  busy: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition
+        ${
+          active
+            ? "bg-[var(--tk-ink)] text-[var(--tk-paper)]"
+            : "bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
+        }
+        ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+    >
+      <span className={active ? "text-[var(--tk-paper)]/80" : "text-[var(--tk-sub)]"}>
+        {busy ? <Loader2 className="size-4 shrink-0 animate-spin" /> : icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="tk-meta block font-bold">{title}</span>
+        <span
+          className={`tk-caption mt-0.5 block truncate ${
+            active ? "text-[var(--tk-paper)]/70" : "text-[var(--tk-faint)]"
+          }`}
+        >
+          {detail}
+        </span>
+      </span>
+      {active && <MapPin className="size-3.5 shrink-0 opacity-70" />}
+      <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight">
+        {time}
+      </span>
+    </button>
+  );
+}
+
 export default function TravelTime({
   destination,
   destinationName,
+  onRouteChange,
 }: {
   destination: { lat: number; lng: number } | null;
   destinationName: string;
+  /** 고른 경로를 위 지도에 그리도록 넘긴다. null이면 지도를 원래대로 돌린다. */
+  onRouteChange?: (route: RouteSegment[] | null) => void;
 }) {
   const [places, setPlaces] = useState<MyPlace[]>([]);
   const [selected, setSelected] = useState<string>(CURRENT);
@@ -73,6 +146,17 @@ export default function TravelTime({
 
   const [routes, setRoutes] = useState<Routes | null>(null);
   const [routeState, setRouteState] = useState<"idle" | "loading" | "unavailable">("idle");
+
+  const [picked, setPicked] = useState<Picked>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [drawError, setDrawError] = useState<string | null>(null);
+
+  // 소요시간 계산 effect 안에서 쓰는데, 부모가 새 함수를 넘길 때마다
+  // 다시 계산하지 않도록 ref에 담아둔다.
+  const onRouteChangeRef = useRef(onRouteChange);
+  useEffect(() => {
+    onRouteChangeRef.current = onRouteChange;
+  }, [onRouteChange]);
 
   // 장소 추가 대화상자
   const [adding, setAdding] = useState(false);
@@ -129,6 +213,9 @@ export default function TravelTime({
 
     let cancelled = false;
     setRouteState("loading");
+    // 출발지가 바뀌면 그리던 경로는 더 이상 맞지 않는다.
+    setPicked(null);
+    onRouteChangeRef.current?.(null);
 
     fetch("/api/directions", {
       method: "POST",
@@ -161,8 +248,65 @@ export default function TravelTime({
     };
   }, [origin, destLat, destLng]);
 
+  // ---------------- 경로를 지도에 그리기 ----------------
+  const pick = async (next: Picked) => {
+    setDrawError(null);
+
+    // 같은 걸 다시 누르면 끈다 — 눌렀다 뒤로 가는 게 쉬워야 한다.
+    if (next === picked || next === null) {
+      setPicked(null);
+      onRouteChange?.(null);
+      return;
+    }
+
+    if (next === "car") {
+      const path = routes?.car?.path;
+      if (!path?.length) {
+        setDrawError("자동차 경로를 그릴 수 없습니다.");
+        return;
+      }
+      setPicked("car");
+      onRouteChange?.([{ kind: "car", label: "자동차", color: "#16233F", points: path }]);
+      return;
+    }
+
+    const option = routes?.transit?.[next];
+    if (!option?.mapObj || !origin || destLat === undefined || destLng === undefined) {
+      setDrawError("이 경로는 지도에 그릴 수 없습니다.");
+      return;
+    }
+
+    setPicked(next);
+    setDrawing(true);
+    try {
+      const res = await fetch("/api/directions/lane", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mapObj: option.mapObj,
+          origin: { lat: origin.lat, lng: origin.lng },
+          destination: { lat: destLat, lng: destLng },
+        }),
+      });
+      const data = (await res.json()) as { segments: RouteSegment[] | null };
+      if (!data.segments) {
+        setDrawError("노선 정보를 가져오지 못했습니다.");
+        setPicked(null);
+        onRouteChange?.(null);
+        return;
+      }
+      onRouteChange?.(data.segments);
+    } catch {
+      setDrawError("노선 정보를 가져오지 못했습니다.");
+      setPicked(null);
+      onRouteChange?.(null);
+    } finally {
+      setDrawing(false);
+    }
+  };
+
   // ---------------- 카카오맵으로 넘기기 ----------------
-  // 대중교통·도보 경로는 지도 앱이 훨씬 잘한다. 여기서 흉내 내지 않는다.
+  // 앱 안에서 못 그리는 것(실시간 교통, 상세 안내)은 지도 앱이 훨씬 잘한다.
   const kakaoMapUrl = destination
     ? `https://map.kakao.com/link/to/${encodeURIComponent(destinationName)},${destination.lat},${destination.lng}`
     : `https://map.kakao.com/link/search/${encodeURIComponent(destinationName)}`;
@@ -269,43 +413,59 @@ export default function TravelTime({
           </p>
         ) : (
           <>
-            <p className="tk-caption mb-2 text-[var(--tk-faint)]">{origin.label}에서 출발</p>
+            <p className="tk-caption mb-2 text-[var(--tk-faint)]">
+              {picked === null
+                ? `${origin.label}에서 출발 · 누르면 지도에 길이 보입니다`
+                : `${origin.label}에서 출발 · 다시 누르면 지도를 되돌립니다`}
+            </p>
             <ul className="space-y-1.5">
               {routes.transit?.map((t, i) => (
-                <li
-                  key={`${t.mode}-${i}`}
-                  className="flex items-center gap-3 rounded-xl bg-[var(--tk-ground)] px-4 py-3"
-                >
-                  <TrainFront className="size-4 shrink-0 text-[var(--tk-sub)]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="tk-meta font-bold text-[var(--tk-ink)]">{t.mode}</p>
-                    <p className="tk-caption mt-0.5 truncate text-[var(--tk-faint)]">
-                      {t.transfers > 0 ? `환승 ${t.transfers}회` : "환승 없음"}
-                      {t.fare !== null && ` · ${t.fare.toLocaleString("ko-KR")}원`}
-                      {t.firstStation && ` · ${t.firstStation} 탑승`}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight text-[var(--tk-ink)]">
-                    {formatDuration(t.durationSec)}
-                  </span>
+                <li key={`${t.mode}-${i}`}>
+                  <RouteRow
+                    icon={<TrainFront className="size-4 shrink-0" />}
+                    title={t.mode}
+                    detail={
+                      (t.transfers > 0 ? `환승 ${t.transfers}회` : "환승 없음") +
+                      (t.fare !== null ? ` · ${t.fare.toLocaleString("ko-KR")}원` : "") +
+                      (t.firstStation ? ` · ${t.firstStation} 탑승` : "")
+                    }
+                    time={formatDuration(t.durationSec)}
+                    active={picked === i}
+                    busy={drawing && picked === i}
+                    disabled={!t.mapObj}
+                    onClick={() => pick(i)}
+                  />
                 </li>
               ))}
 
               {routes.car && (
-                <li className="flex items-center gap-3 rounded-xl bg-[var(--tk-ground)] px-4 py-3">
-                  <Car className="size-4 shrink-0 text-[var(--tk-sub)]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="tk-meta font-bold text-[var(--tk-ink)]">자동차</p>
-                    <p className="tk-caption mt-0.5 text-[var(--tk-faint)]">
-                      {formatDistance(routes.car.distanceM)}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-[19px] font-extrabold leading-none tracking-tight text-[var(--tk-ink)]">
-                    {formatDuration(routes.car.durationSec)}
-                  </span>
+                <li>
+                  <RouteRow
+                    icon={<Car className="size-4 shrink-0" />}
+                    title="자동차"
+                    detail={formatDistance(routes.car.distanceM)}
+                    time={formatDuration(routes.car.durationSec)}
+                    active={picked === "car"}
+                    busy={false}
+                    disabled={!routes.car.path?.length}
+                    onClick={() => pick("car")}
+                  />
                 </li>
               )}
             </ul>
+
+            {drawError && <p className="tk-caption mt-2 text-[var(--tk-warn)]">{drawError}</p>}
+
+            {picked !== null && (
+              <button
+                type="button"
+                onClick={() => pick(null)}
+                className="tk-caption mt-2 w-full rounded-xl border border-[var(--tk-line)]
+                  py-2.5 text-[var(--tk-sub)] transition hover:bg-[var(--tk-ground)]"
+              >
+                지도 되돌리기
+              </button>
+            )}
           </>
         )}
       </div>

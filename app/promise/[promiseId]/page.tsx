@@ -29,6 +29,7 @@ import {
 import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
 import SharePromise from "../../../components/share-promise";
 import TravelTime from "../../../components/travel-time";
+import PromiseMap, { type RouteSegment } from "../../../components/promise-map";
 import {
   displayLocation,
   formatWhen,
@@ -89,6 +90,17 @@ export default function PromisePage() {
 
   const [promiseId, setPromiseId] = useState<string>("");
   const [promiseData, setPromiseData] = useState<PromiseData | null>(null);
+  // 아래 "얼마나 걸릴까"에서 고른 경로. 위 지도에 그린다.
+  const [mapRoute, setMapRoute] = useState<RouteSegment[] | null>(null);
+
+  // 매번 새 객체를 만들면 아래 컴포넌트가 소요시간을 다시 계산한다.
+  const destinationCoord = useMemo(() => {
+    const lat = promiseData?.locationLat;
+    const lng = promiseData?.locationLng;
+    return Number.isFinite(lat) && Number.isFinite(lng)
+      ? { lat: lat as number, lng: lng as number }
+      : null;
+  }, [promiseData?.locationLat, promiseData?.locationLng]);
   // 참여자가 아닐 때 비밀번호 화면에 쓸 최소 정보 (제목만)
   const [summary, setSummary] = useState<PromiseSummary | null>(null);
 
@@ -165,56 +177,6 @@ export default function PromisePage() {
     fetchPromiseData(promiseId).finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promiseId, firebaseReady, currentUser]);
-
-  // ================= 📍 카카오 지도 표시 =================
-  useEffect(() => {
-    if (!hasAccess || !promiseData?.location) return;
-
-    const kakao = (window as any).kakao;
-    if (!kakao?.maps) return;
-
-    kakao.maps.load(() => {
-      const container = document.getElementById("kakao-map");
-      if (!container) return;
-      container.innerHTML = "";
-
-      const map = new kakao.maps.Map(container, {
-        center: new kakao.maps.LatLng(37.5665, 126.978),
-        level: 3,
-      });
-
-      const lat = (promiseData as any).locationLat;
-      const lng = (promiseData as any).locationLng;
-
-      if (typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-        const pos = new kakao.maps.LatLng(lat, lng);
-        const marker = new kakao.maps.Marker({ map, position: pos });
-        const infowindow = new kakao.maps.InfoWindow({
-          content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
-        });
-        infowindow.open(map, marker);
-        map.setCenter(pos);
-        map.setLevel(3);
-        return;
-      }
-
-      if (!kakao.maps.services) return;
-
-      const places = new kakao.maps.services.Places();
-      places.keywordSearch(promiseData.location, (result: any, status2: any) => {
-        if (status2 !== kakao.maps.services.Status.OK || !result?.length) return;
-        const first = result[0];
-        const pos = new kakao.maps.LatLng(Number(first.y), Number(first.x));
-        const marker = new kakao.maps.Marker({ map, position: pos });
-        const infowindow = new kakao.maps.InfoWindow({
-          content: `<div style="padding:6px 8px;font-size:12px;">${promiseData.location}</div>`,
-        });
-        infowindow.open(map, marker);
-        map.setCenter(pos);
-        map.setLevel(3);
-      });
-    });
-  }, [hasAccess, promiseData?.location, (promiseData as any)?.locationLat, (promiseData as any)?.locationLng]);
 
   // ✅ 삭제
   const handleDelete = async () => {
@@ -484,28 +446,56 @@ export default function PromisePage() {
           </div>
         </div>
 
-        {/* 약속 장소 */}
+        {/* 약속 장소 — 경로를 고르면 이 지도 위에 그려진다 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
           <p className="mb-2.5 tk-label text-[var(--tk-faint)]">
-            약속 장소
+            {mapRoute ? "가는 길" : "약속 장소"}
           </p>
-          <div
-            id="kakao-map"
-            className="h-44 w-full overflow-hidden rounded-xl bg-[var(--tk-ground)]"
+          <PromiseMap
+            destination={destinationCoord}
+            destinationName={displayLocation(promiseData.location)}
+            route={mapRoute}
+            className={`w-full overflow-hidden rounded-xl bg-[var(--tk-ground)] transition-[height]
+              ${mapRoute ? "h-72" : "h-44"}`}
           />
-          <p className="tk-meta mt-2.5 font-medium text-[var(--tk-ink)]">
-            {displayLocation(promiseData.location)}
-          </p>
+          {mapRoute ? (
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {mapRoute
+                .filter((s) => s.label)
+                .map((s, i) => (
+                  <span key={`${s.label}-${i}`} className="flex items-center gap-1.5">
+                    <span
+                      className="h-[3px] w-4 rounded-full"
+                      style={{ background: s.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="tk-caption text-[var(--tk-sub)]">{s.label}</span>
+                  </span>
+                ))}
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="h-[3px] w-4 rounded-full opacity-60"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(90deg,#8894AE 0 4px,transparent 4px 7px)",
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="tk-caption text-[var(--tk-faint)]">도보</span>
+              </span>
+            </div>
+          ) : (
+            <p className="tk-meta mt-2.5 font-medium text-[var(--tk-ink)]">
+              {displayLocation(promiseData.location)}
+            </p>
+          )}
         </section>
 
         {/* 얼마나 걸리는지 */}
         <TravelTime
-          destination={
-            Number.isFinite(promiseData.locationLat) && Number.isFinite(promiseData.locationLng)
-              ? { lat: promiseData.locationLat as number, lng: promiseData.locationLng as number }
-              : null
-          }
+          destination={destinationCoord}
           destinationName={displayLocation(promiseData.location)}
+          onRouteChange={setMapRoute}
         />
 
         {/* 참여자 */}
