@@ -34,8 +34,13 @@ rl.question("관리자 비밀번호를 입력하세요: ", async (pw) => {
   }
 
   const hash = await hashAdminPassword(trimmed);
-  console.log("아래 한 줄을 .env.local 에 추가하고, Vercel 환경변수에도 같은 값을 넣으세요.\n");
-  console.log(`ADMIN_PASSWORD_HASH="${hash}"\n`);
+  console.log("─".repeat(60));
+  console.log("아래 한 줄을 그대로 복사하세요. (따옴표 없이)\n");
+  console.log(`ADMIN_PASSWORD_HASH=${hash}`);
+  console.log("\n" + "─".repeat(60));
+  console.log("1) .env.local 파일 맨 아래에 붙여넣기");
+  console.log("2) Vercel > Settings > Environment Variables 에도 같은 값 등록");
+  console.log("   (이름: ADMIN_PASSWORD_HASH / 값: scrypt: 로 시작하는 부분만)\n");
   console.log("평문 비밀번호는 저장되지 않습니다. 잊어버리면 다시 만들어야 합니다.");
   process.exit(0);
 });
