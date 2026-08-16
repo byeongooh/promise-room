@@ -1,10 +1,30 @@
 // 로그인 화면 배경 두 가지.
-// 둘 다 화면을 꽉 채우고, 그 위에 글씨가 얹히므로 위아래를 부드럽게 덮어(scrim) 읽기를 지킨다.
+// 그림 위에 글씨가 얹히므로 위아래를 부드럽게 덮어(scrim) 읽기를 지킨다.
 // 장식일 뿐이라 스크린리더에는 잡히지 않게 한다.
+
+// 이 앱은 폰 화면을 기준으로 그렸다. 그림을 화면 폭에 그대로 맞추면
+// PC처럼 넓은 화면에서 티켓이 길게 늘어나고 지도가 확대돼 버린다.
+// 그래서 그림은 폰 폭(아래 값)의 기둥 안에서만 그리고, 양옆은 배경색으로 흘려보낸다.
+const COLUMN = "min(100%, 30rem)";
+
+/** 그림이 놓이는 기둥. 양옆 경계가 드러나지 않게 좌우를 서서히 지운다. */
+function ArtColumn({ children }: { children: React.ReactNode }) {
+  const fade = "linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%)";
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div
+        className="relative mx-auto h-full overflow-hidden"
+        style={{ width: COLUMN, maskImage: fade, WebkitMaskImage: fade }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /** 03 — 흐린 티켓이 흩뿌려진 배경 */
 export function TicketPatternBackground() {
-  // 화면 크기가 제각각이라 위치는 %로 잡는다.
+  // 기둥 안에서의 위치라 %로 잡아도 안전하다.
   type Scatter = {
     left?: string;
     right?: string;
@@ -23,7 +43,7 @@ export function TicketPatternBackground() {
   ];
 
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <ArtColumn>
       {tickets.map((t, i) => (
         <div
           key={i}
@@ -47,7 +67,7 @@ export function TicketPatternBackground() {
         </div>
       ))}
 
-      {/* 글씨가 놓이는 가운데를 밝게 덮는다 */}
+      {/* 글씨가 놓이는 아래쪽을 덮는다 */}
       <div
         className="absolute inset-0"
         style={{
@@ -56,7 +76,7 @@ export function TicketPatternBackground() {
             " transparent 52%, var(--tk-ground) 78%)",
         }}
       />
-    </div>
+    </ArtColumn>
   );
 }
 
@@ -82,7 +102,7 @@ export function CityMapBackground() {
   ];
 
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <ArtColumn>
       <svg
         viewBox="0 0 340 736"
         preserveAspectRatio="xMidYMid slice"
@@ -175,6 +195,6 @@ export function CityMapBackground() {
             " var(--tk-ground) 82%)",
         }}
       />
-    </div>
+    </ArtColumn>
   );
 }
