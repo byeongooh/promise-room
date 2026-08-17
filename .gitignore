@@ -26,8 +26,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# 로컬 개발 도구 설정
-.claude/
+# 로컬 개발 도구 설정.
+# 다만 아래 둘은 팀(과 다른 컴퓨터)이 같이 써야 하므로 올린다.
+#   skills/     — 이 프로젝트에서 일하는 방식. 다른 컴퓨터에서도 같아야 한다.
+#   launch.json — 개발 서버 실행 설정. 비밀 값이 없다.
+.claude/*
+!.claude/skills/
+!.claude/launch.json
 
 # 마이그레이션 백업 (평문 비밀번호 포함 — 절대 커밋 금지)
 .migration-backup/
