@@ -8,6 +8,7 @@ import {
   Crosshair,
   Footprints,
   Loader2,
+  Moon,
   Navigation,
   TrainFront,
   Trash2,
@@ -230,6 +231,19 @@ function RouteCard({
   );
 }
 
+/**
+ * 지하철·버스가 실제로 안 다니는 시간대(대략 새벽 1~5시)인지 대충 잡는다.
+ *
+ * 정확한 첫차·막차 시각은 노선마다 다르고 우리 API로는 알 수 없다
+ * (ODsay가 실시간 도착정보는 줘도 시각표는 안 준다). 그래서 "이 시간엔
+ * 보통 안 다닌다"는 사실만 말하지, "몇 시부터 다닌다"처럼 확인 못 한
+ * 숫자를 지어내지 않는다.
+ */
+function isLikelyDeadHour(d: Date): boolean {
+  const h = d.getHours();
+  return h >= 1 && h < 5;
+}
+
 export default function TravelTime({
   destination,
   destinationName,
@@ -237,6 +251,7 @@ export default function TravelTime({
   promiseId,
   savedRoute,
   onSaved,
+  meetingAt,
 }: {
   destination: { lat: number; lng: number } | null;
   destinationName: string;
@@ -248,6 +263,9 @@ export default function TravelTime({
   savedRoute?: MemberRoute | null;
   /** 저장이 끝나면 알려준다. 위 "나가야 하는 시각" 블록이 바로 따라 바뀌도록. */
   onSaved?: (route: MemberRoute | null, leaveAt: string | null) => void;
+  /** 약속 시각. 심야 시간대면 대중교통 소요시간이 실제와 다를 수 있다고 알려준다.
+   *  ODsay는 운행시간을 안 따져서, 새벽 3시에 물어도 낮과 같은 "24분"을 그대로 준다. */
+  meetingAt?: Date | null;
 }) {
   const [places, setPlaces] = useState<MyPlace[]>([]);
   // 저장된 경로가 있으면 "지금 있는 곳"으로 시작하지 않는다. 그러면 위치 권한을
@@ -627,6 +645,23 @@ export default function TravelTime({
               <b className="text-[var(--tk-sub)]">{origin.label}</b>에서 출발 · 누르면 지도에
               길이 보입니다
             </p>
+
+            {/* 약속이 심야(대략 새벽 1~5시)라면 대중교통 소요시간을 곧이곧대로
+                믿으면 안 된다 — 그 시간대엔 실제로 안 다닐 수 있는데, 이 값은
+                낮에 물어도 같은 숫자가 나온다(ODsay가 운행시간을 안 따진다).
+                "몇 시부터 다닌다"는 확인 못 했으니 지어내지 않고, 사실만 말한다. */}
+            {routes.transit && routes.transit.length > 0 && meetingAt && isLikelyDeadHour(meetingAt) && (
+              <p className="tk-caption mb-2 flex items-start gap-1.5 rounded-xl
+                bg-[var(--ap-honey-weak)] px-3.5 py-2.5 text-[var(--tk-sub)]">
+                <Moon className="mt-[1px] size-3.5 shrink-0" />
+                <span>
+                  약속이 새벽 시간대예요. 여기 나온 대중교통 소요시간은 실제로 다니는지와
+                  상관없이 나온 값이라, 그 시간엔 지하철·버스가 끊겨 있을 수 있어요.
+                  자동차나 첫차 시간을 따로 확인해보세요.
+                </span>
+              </p>
+            )}
+
             <ul className="space-y-1.5">
               {routes.transit?.map((t, i) => (
                 <li key={`${t.mode}-${i}`}>

@@ -61,7 +61,11 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* 날짜·시간을 나란히 두면(그리드 2칸) 좁은 폰 화면에서 인풋 하나가
+          150px도 안 남는다. 네이티브 날짜·시간 위젯(달력·시계 아이콘 + 글자)은
+          그보다 넓은 공간을 요구해서, 브라우저가 그 안에 욱여넣다가 아이콘과
+          글자가 겹쳐 보인다. 세로로 쌓아 각자 전체 폭을 쓰게 한다. */}
+      <div className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="date" className="tk-field-label text-[var(--tk-sub)]">
             날짜

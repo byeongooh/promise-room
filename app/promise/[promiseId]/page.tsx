@@ -554,6 +554,7 @@ export default function PromisePage() {
               onRouteChange={setMapRoute}
               promiseId={promiseId}
               savedRoute={myRoute}
+              meetingAt={getPromiseDate(promiseData)}
               onSaved={(route, leaveAt) => {
                 // 경로를 고르는 즉시 위 출발 시각 블록이 따라 바뀌어야 한다.
                 setMyRoute(route);
