@@ -13,6 +13,7 @@ import { useAppleStats } from "@/hooks/use-apple-stats";
 import {
   BRIX_MAX,
   BRIX_MIN,
+  STAGES,
   formatBrix,
   stageOf,
   toNextStage,
@@ -83,6 +84,52 @@ export default function MyApplePage() {
               다음 단계 {next.name}까지 {remain.toFixed(1)} Brix
             </p>
           )}
+        </section>
+
+        {/* 당도 기준 — "몇 Brix부터 다음 단계가 되는지"를 한눈에.
+            현재 단계를 강조해서 지금 어디쯤인지와 다음 목표를 같이 보여준다. */}
+        <section className="mb-3 rounded-xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-[var(--tk-line)]">
+          <p className="tk-label mb-2.5 text-[var(--tk-faint)]">당도 기준</p>
+          <ul className="space-y-0">
+            {STAGES.map((s) => {
+              const isCurrent = s.name === stage.name;
+              return (
+                <li
+                  key={s.name}
+                  className="border-t border-[var(--tk-line)] py-2.5 first:border-t-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${
+                        isCurrent ? "bg-[var(--ap-red)]" : "bg-[var(--tk-line)]"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`tk-body flex-1 ${
+                        isCurrent ? "font-bold text-[var(--tk-ink)]" : "text-[var(--tk-sub)]"
+                      }`}
+                    >
+                      {s.name}
+                    </span>
+                    <span className="tk-caption tabular-nums text-[var(--tk-faint)]">
+                      {s.from} Brix부터
+                    </span>
+                    {isCurrent && (
+                      <span className="tk-caption shrink-0 rounded-full bg-[var(--ap-red-weak)]
+                        px-2 py-0.5 font-bold text-[var(--ap-red)]">
+                        지금
+                      </span>
+                    )}
+                  </div>
+                  {/* 점 너비(size-2) + gap(gap-3)만큼 들여서 이름 아래에 붙인다 */}
+                  <p className="tk-caption ml-[1.25rem] mt-0.5 text-[var(--tk-faint)]">
+                    {s.flavor}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
         </section>
 
         {/* 아직 수확이 없다는 사실을 숨기지 않는다 */}

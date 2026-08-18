@@ -21,15 +21,19 @@ export interface Stage {
   from: number;
   /** 다음 단계가 시작되는 당도 (미포함) */
   to: number;
+  /** "몇 브릭스는 이 정도로 달다"를 감으로 느끼게 하는 비유 한 줄.
+   *  Brix 자체가 숫자로는 안 와닿아서, 다음 단계까지 몇 Brix 남았는지보다
+   *  "지금 이 정도 달다"가 더 잘 읽힌다. */
+  flavor: string;
 }
 
 // 이름과 구간은 핸드오프 §7의 제안값이다. 바뀔 수 있다.
 export const STAGES: Stage[] = [
-  { name: "새싹", from: 8, to: 11 },
-  { name: "묘목", from: 11, to: 13 },
-  { name: "첫 열매", from: 13, to: 15 },
-  { name: "과수", from: 15, to: 18 },
-  { name: "고목", from: 18, to: 20 },
+  { name: "새싹", from: 8, to: 11, flavor: "풋사과처럼 새콤해요" },
+  { name: "묘목", from: 11, to: 13, flavor: "사이다 한 모금 정도로 달아요" },
+  { name: "첫 열매", from: 13, to: 15, flavor: "잘 익은 사과 그대로예요" },
+  { name: "과수", from: 15, to: 18, flavor: "초콜릿처럼 진하게 달아요" },
+  { name: "고목", from: 18, to: 20, flavor: "꿀사과라 불릴 만큼 달아요" },
 ];
 
 export function clampBrix(brix: number): number {
