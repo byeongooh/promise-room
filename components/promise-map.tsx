@@ -100,6 +100,8 @@ export default function PromiseMap({
   const markerRef = useRef<KakaoOverlay | null>(null);
   const linesRef = useRef<KakaoOverlay[]>([]);
   const pointsRef = useRef<KakaoOverlay[]>([]);
+  /** 마지막으로 맞춘 화면 범위. 상자 크기가 바뀐 뒤 다시 맞추는 데 쓴다. */
+  const boundsRef = useRef<KakaoBounds | null>(null);
 
   // ---------------- 지도 만들기 + 목적지 표시 ----------------
   useEffect(() => {
@@ -195,8 +197,53 @@ export default function PromiseMap({
       linesRef.current.push(line);
     }
 
-    if (!bounds.isEmpty()) map.setBounds(bounds, 30, 30, 30, 30);
+    if (!bounds.isEmpty()) {
+      map.setBounds(bounds, 30, 30, 30, 30);
+      boundsRef.current = bounds;
+    } else {
+      boundsRef.current = null;
+    }
   }, [route, destination]);
+
+  // ---------------- 상자 크기가 바뀌면 다시 그리기 ----------------
+  //
+  // 카카오 지도는 컨테이너 크기를 스스로 지켜보지 않는다. 경로를 고르면
+  // 이 상자가 176px에서 352px로 커지는데, 그때 relayout()을 불러주지 않으면
+  // 늘어난 아래쪽이 빈 칸으로 남는다. 마우스 휠을 굴리면 지도가 스스로
+  // 다시 그려서 "돌아온 것처럼" 보이던 게 이 증상이다.
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      // 높이가 CSS transition으로 변하는 동안 수십 번 불린다.
+      // 프레임당 한 번으로 묶어서 마지막 크기에만 반응하게 한다.
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const kakao = kakaoNS();
+        const map = mapRef.current;
+        if (!kakao || !map) return;
+
+        map.relayout();
+
+        // relayout만 하면 보던 자리가 어긋난다. 그리던 경로가 있으면 다시
+        // 맞추고, 없으면 목적지를 가운데로 되돌린다.
+        const b = boundsRef.current;
+        if (b && !b.isEmpty()) {
+          map.setBounds(b, 30, 30, 30, 30);
+        } else if (destination) {
+          map.setCenter(new kakao.maps.LatLng(destination.lat, destination.lng));
+        }
+      });
+    });
+
+    ro.observe(box);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [destination]);
 
   // ---------------- 승차·환승·하차 점 ----------------
   useEffect(() => {

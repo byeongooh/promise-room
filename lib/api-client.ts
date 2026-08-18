@@ -76,3 +76,32 @@ export function leavePromise(promiseId: string) {
 export function deletePromise(promiseId: string) {
   return request<{ ok: true }>(`/api/promises/${promiseId}`, { method: "DELETE" });
 }
+
+// ---------------------------------------------------------------- 내 상태
+
+export interface MemberRouteInput {
+  kind: "car" | "transit";
+  label: string;
+  durationSec: number;
+  origin: { label: string; lat: number; lng: number };
+  mapObj?: string | null;
+  transfers?: number | null;
+  fare?: number | null;
+  firstStation?: string | null;
+}
+
+export type MemberStatus = "unknown" | "onway" | "arrived";
+
+/**
+ * 이 약속에서의 내 상태를 바꾼다. 대상은 항상 로그인한 본인이라 uid를 보내지 않는다.
+ * route에 null을 주면 "고른 경로 지우기"이고, 아예 넘기지 않으면 경로는 그대로 둔다.
+ */
+export function updateMyMember(
+  promiseId: string,
+  patch: { route?: MemberRouteInput | null; status?: MemberStatus }
+) {
+  return request<{ ok: true; leaveAt: string | null }>(`/api/promises/${promiseId}/me`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}

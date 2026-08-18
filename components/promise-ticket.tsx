@@ -64,7 +64,7 @@ export default function PromiseTicket({
   // 예시는 열 상세 화면이 없다. 버튼으로 두면 눌러보고 아무 일도 안 일어난다.
   if (example) {
     return (
-      <div className={`${shell} relative`} aria-label="예시 약속">
+      <div className={`${shell} relative`} aria-label="예시 플랜">
         <span
           className="absolute right-[5.75rem] top-2.5 rounded-full bg-[var(--tk-ground)]
             px-2 py-0.5 tk-caption font-bold text-[var(--tk-faint)]"

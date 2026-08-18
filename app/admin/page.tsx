@@ -131,7 +131,7 @@ export default function AdminPage() {
             <h1 className="tk-title text-[var(--tk-ink)]">관리자</h1>
           </div>
           <p className="tk-meta mb-4 text-[var(--tk-sub)]">
-            테스트 관찰용 화면입니다. 모든 약속을 읽기 전용으로 봅니다.
+            테스트 관찰용 화면입니다. 모든 플랜을 읽기 전용으로 봅니다.
           </p>
 
           <div className="space-y-1.5">
@@ -153,7 +153,7 @@ export default function AdminPage() {
           <Button
             type="submit"
             disabled={busy}
-            className="mt-4 h-11 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+            className="mt-4 h-11 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : "들어가기"}
           </Button>
@@ -170,7 +170,7 @@ export default function AdminPage() {
           <div className="min-w-0">
             <h1 className="tk-display text-[var(--tk-ink)]">관리자</h1>
             <p className="tk-meta text-[var(--tk-sub)]">
-              약속 {data.total}건 · 사용자 {data.users.length}명
+              플랜 {data.total}건 · 사용자 {data.users.length}명
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -199,7 +199,7 @@ export default function AdminPage() {
                   : "bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
               }`}
             >
-              전체 약속
+              전체 플랜
             </button>
 
             {/* 목록의 사람들은 모두 약속이 1건 이상이라(약속에서 뽑아낸 목록이므로)
@@ -240,7 +240,7 @@ export default function AdminPage() {
             <div className="mb-3 flex items-center gap-2 rounded-xl bg-[var(--tk-hot-bg)] px-3.5 py-2.5">
               <Eye className="size-4 shrink-0 text-[var(--tk-hot-ink)]" />
               <p className="tk-caption min-w-0 text-[var(--tk-hot-ink)]">
-                <b>막 가입한 사람</b>에게 보이는 화면 · 약속 0건
+                <b>막 가입한 사람</b>에게 보이는 화면 · 플랜 0건
               </p>
             </div>
             <EmptyPromises />
@@ -251,7 +251,7 @@ export default function AdminPage() {
             <div className="mb-3 flex items-center gap-2 rounded-xl bg-[var(--tk-hot-bg)] px-3.5 py-2.5">
               <Eye className="size-4 shrink-0 text-[var(--tk-hot-ink)]" />
               <p className="tk-caption min-w-0 text-[var(--tk-hot-ink)]">
-                <b>{asUser.name}</b> 님에게 보이는 화면 · 약속 {visible.upcoming.length +
+                <b>{asUser.name}</b> 님에게 보이는 화면 · 플랜 {visible.upcoming.length +
                   visible.past.length}
                 건
                 <span className="ml-1.5 font-mono opacity-70">{asUser.uid}</span>
@@ -263,7 +263,7 @@ export default function AdminPage() {
             ) : (
               <div className="flex flex-col gap-3">
                 {visible.upcoming.length > 0 && (
-                  <p className="px-1 tk-label text-[var(--tk-faint)]">다가오는 약속</p>
+                  <p className="px-1 tk-label text-[var(--tk-faint)]">다가오는 플랜</p>
                 )}
                 {visible.upcoming.map((p: AdminPromise) => (
                   <PromiseTicket
@@ -274,7 +274,7 @@ export default function AdminPage() {
                 ))}
 
                 {visible.past.length > 0 && (
-                  <p className="mt-3 px-1 tk-label text-[var(--tk-faint)]">지난 약속</p>
+                  <p className="mt-3 px-1 tk-label text-[var(--tk-faint)]">지난 플랜</p>
                 )}
                 {visible.past.map((p: AdminPromise) => (
                   <PromiseTicket
@@ -335,7 +335,7 @@ export default function AdminPage() {
         )}
 
         <p className="tk-caption mt-6 text-center text-[var(--tk-faint)]">
-          읽기 전용입니다. 여기서는 약속을 고치거나 지울 수 없습니다.
+          읽기 전용입니다. 여기서는 플랜을 고치거나 지울 수 없습니다.
         </p>
       </div>
     </main>

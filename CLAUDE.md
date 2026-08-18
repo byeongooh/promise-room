@@ -57,6 +57,11 @@ node --env-file=.env.local scripts/check-odsay.mjs   # 대중교통 API 점검
   필드 단위로 가릴 수 없어서, 약속 문서에 두면 문서를 읽는 순간 같이 읽힌다.
   이 하위 컬렉션은 규칙에서 완전히 차단되어 있고 Admin SDK만 접근한다.
   **어떤 API 응답에도 해시를 넣지 말 것.**
+- **참여자 상태(`members/`)도 쓰기는 서버만.** 읽기는 같은 약속 참여자 전원에게
+  연다(서로 어떻게 오는지 보는 게 목적이라 본인 것만 읽게 하면 의미가 없다).
+  하위 컬렉션은 부모 조건을 물려받지 않아서, 규칙이 부모 약속을 `get()`으로
+  직접 읽어 참여자인지 본다. 대상은 늘 요청자 본인이라 API 경로에 uid를 받지
+  않는다 — 그래서 URL만으로 남의 상태를 건드릴 방법이 없다.
 - **읽기는 참여자만.** 대시보드는 `where("participantIds","array-contains",uid)`로
   읽는다. 규칙은 필터가 아니라서, 목록 질의에 한 건이라도 권한 없는 문서가
   걸리면 질의 전체가 실패한다.
@@ -117,7 +122,7 @@ node --env-file=.env.local scripts/check-odsay.mjs   # 대중교통 API 점검
 lib/
   uid.ts              uid 정규화 — 모든 uid는 여기를 통과
   api-guard.ts        API 인증. NextAuth 쿠키 + Bearer 토큰(향후 RN 앱용)
-  promise-service.ts  Admin SDK 도메인 로직 (생성·참여·탈퇴·삭제)
+  promise-service.ts  Admin SDK 도메인 로직 (생성·참여·탈퇴·삭제·참여자 상태)
   password.ts         약속 비밀번호(scrypt, 4자 이상)
   admin-password.ts   관리자 비밀번호. 구분자가 ':' 인 이유는 아래 참고
   admin-auth.ts       HMAC 서명 httpOnly 쿠키 pr_admin (8시간)
@@ -129,15 +134,18 @@ lib/
 components/
   promise-ticket.tsx  약속 티켓. example 모드는 누를 수 없는 예시용
   promise-map.tsx     카카오 지도 + 경로 선 + 승하차 점
-  travel-time.tsx     출발지 고르기 → 경로 목록 → 지도에 그리기
+  travel-time.tsx     출발지 고르기 → 경로 목록 → 지도에 그리기 → 서버에 저장
   origin-search.tsx   출발지 검색창 (카카오 장소 검색)
+  member-board.tsx    누가 뭘 타고 오는지 + 확인/가는 중/도착 (실시간 구독)
   empty-promises.tsx  약속 0건일 때 화면 — 대시보드와 관리자가 공유
 app/
   page.tsx                    대시보드 (내 약속만)
   promise/[promiseId]/        약속 상세
   admin/                      테스트 관찰용 관리자 화면 (읽기 전용)
   api/directions/             소요시간 · /lane 은 노선 좌표
+  api/promises/[id]/me        이 약속에서의 "나" — 경로·상태 (PATCH)
 scripts/check-odsay.mjs       대중교통 API 점검
+scripts/verify-rules.mjs      배포된 보안 규칙을 클라이언트 SDK로 실제 검증
 ```
 
 **함정 하나:** Next.js의 `.env` 파일은 `$1` 같은 값을 변수로 보고 치환한다.
@@ -150,6 +158,7 @@ Claude가 못 하는 것들이다.
 
 - **Firestore 보안 규칙 배포** — `firebase` CLI가 없어서 Firebase 콘솔에
   붙여넣어야 한다. 배포 전에 이전 내용을 백업하고, 콘솔 Playground로 먼저 검증할 것.
+  **지금 배포 대기 중이다** — `members/` 읽기 규칙이 아직 안 올라갔다.
 - **Firestore 색인 생성** — `participantIds`(array-contains) + `createdAt`(내림차순).
 - **외부 서비스 가입과 키 발급** (카카오·Firebase·ODsay·Vercel).
 - **환경변수 등록 후 Vercel 재배포** — 저장만 하면 기존 배포본에는 적용되지 않는다.
@@ -165,18 +174,29 @@ Claude가 못 하는 것들이다.
 
 ## 남은 일
 
-**바로 다음 (위치 공유로 가는 뼈대)**
-약속마다 참여자별 상태를 담을 자리가 필요하다 — `promises/{id}/members/{uid}`.
-지금은 경로를 골라도 화면에서만 그려지고 새로고침하면 사라진다. 이걸 서버에
-저장해야 ① 다른 참여자가 "이시온은 2호선으로 온다"를 보고 ② 서버가
-"지금 나가야 해요" 알림 시각을 계산하고 ③ 확인 안 함 / 가는 중 / 도착
-상태를 얹을 수 있다. **보안 규칙 수정이 필요하다.**
+**바로 다음 — 규칙 배포만 남았다**
+`promises/{id}/members/{uid}`를 만들어 코드는 다 붙였다. 고른 경로가 서버에
+저장되고, 참여자끼리 서로 보이고, 확인 안 함 / 가는 중 / 도착 상태가 얹힌다.
+**`firestore.rules`를 콘솔에 배포하기 전까지는 이 칸이 화면에서 접혀 있다**
+(권한이 없으면 안내 문구만 뜨고 나머지 화면은 멀쩡히 돈다).
+배포한 뒤 `node scripts/verify-rules.mjs`로 확인할 것.
 
-**확인 필요**
-- ODsay 실시간 버스 도착(`realtimeStation`) — 새벽에는 노선 목록만 오고
-  도착시간이 비어 있었다. 버스가 다니는 낮에 다시 확인할 것.
-- TMAP 보행자 경로 API 요금 — 지금 도보 구간은 직선 점선이다.
-  (TMAP이 비싼 건 **대중교통** API이고 보행자는 별개다.)
+그다음이 알림이다. 서버가 경로를 저장할 때 `leaveAt`(= 약속시각 − 소요시간)을
+같이 박아둔다. 여기에 "몇 분 전에 보낼지"만 정하면 알림을 걸 수 있다.
+그 뒤가 좌표를 얹는 실시간 위치 공유다.
+
+**확인 끝난 것** (2026-08-17)
+- **ODsay 실시간 버스 도착 — 낮에는 정상이다.** 서울역버스환승센터에서
+  22개 노선 중 19개에 도착시간이 왔다. 필드는 `real[].routeNm`,
+  `arrival1.arrivalSec`(초), `leftStation`(남은 정거장), `congestion`,
+  `lowBusYn`(저상). 새벽에 비어 보였던 건 버스가 안 다녀서였다.
+  단 **정류장에 따라 아예 빈 응답도 온다** (홍대입구역 ID 83422가 그랬다).
+  붙일 때 빈 응답을 정상으로 처리할 것.
+- **TMAP 보행자 경로 = 무료 1,000건/일.** `경로안내` API 그룹(자동차·보행자·
+  타임머신·이미지·화물차 공용) 한도이고, 초과하면 **과금이 아니라 자동 차단**된다.
+  종량제는 11원/건, 정액제는 월 220만원(1만건/일). 이 프로젝트는 자동차를
+  카카오로 쓰므로 1,000건을 전부 보행자에 쓸 수 있다. ODsay와 같은 한도다.
+  (역시 비싼 건 TMAP **대중교통** API 쪽이고 보행자는 별개가 맞았다.)
 
 **정리할 것**
 - 로그인 배경 확정 → 안 고른 쪽과 전환 버튼 삭제

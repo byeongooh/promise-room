@@ -107,7 +107,7 @@ export default function AdminSetupPage() {
             className="rounded-2xl bg-[var(--tk-paper)] p-5 shadow-sm ring-1 ring-black/5"
           >
             <p className="tk-meta mb-4 text-[var(--tk-sub)]">
-              여기서 정한 비밀번호로 <b>모든 약속을 볼 수 있습니다.</b> 남들이 추측하기 어려운
+              여기서 정한 비밀번호로 <b>모든 플랜을 볼 수 있습니다.</b> 남들이 추측하기 어려운
               값으로 정해주세요.
             </p>
 
@@ -148,7 +148,7 @@ export default function AdminSetupPage() {
             <Button
               type="submit"
               disabled={busy}
-              className="mt-4 h-12 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+              className="mt-4 h-12 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : "만들기"}
             </Button>
@@ -171,7 +171,7 @@ export default function AdminSetupPage() {
 
             <Button
               onClick={copy}
-              className="h-11 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+              className="h-11 w-full rounded-xl bg-[var(--tk-gold)] font-bold text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
             >
               {copied ? (
                 <>

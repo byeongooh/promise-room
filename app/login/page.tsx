@@ -1,55 +1,45 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
+import AppleGauge from "@/components/apple-gauge";
 import Wordmark from "@/components/wordmark";
-import { CityMapBackground, TicketPatternBackground } from "@/components/login-background";
+import { BRIX_START } from "@/lib/brix";
 
-// 로그인 화면 배경은 두 안을 만들어 두고 고르는 중이다.
-//   map     — 도시 지도. "어디서 만날지"를 먼저 말한다.
-//   pattern — 흐린 티켓이 흩뿌려진 배경. 더 조용하다.
-// 정하기 전까지는 ?bg=map / ?bg=pattern 으로 폰에서 바로 바꿔 볼 수 있게 둔다.
-type Background = "map" | "pattern";
-const DEFAULT_BACKGROUND: Background = "map";
-
-const BACKGROUNDS: { value: Background; label: string }[] = [
-  { value: "map", label: "지도" },
-  { value: "pattern", label: "티켓" },
-];
-
-// 부제는 배경과 상관없이 하나로 둔다.
-// 앱이 뭘 해주는지 말하는 자리이지, 분위기를 잡는 자리가 아니다.
-const TAGLINE = "약속을 위한 지도 티켓";
+// 첫인상.
+//
+// 예전엔 가짜 도시 지도 그림을 깔고 그 위에 로그인 뭉치를 얹었다(지도/티켓
+// 두 안을 두고 고르는 중이었다). 축이 약속에서 사람(사과)으로 옮겨가면서
+// 첫 화면이 말해야 할 것도 "어디서 만날지"가 아니라 "여기서 뭐가 자라는지"로
+// 바뀌었다. 그래서 배경 그림과 전환 버튼을 통째로 걷어내고 사과만 남겼다.
+//
+// 게이지는 시작값(13.0)이다. 아직 아무것도 안 한 사람의 사과라 그게 맞다.
 
 export default function LoginPage() {
   const [pending, setPending] = useState(false);
-  const [background, setBackground] = useState<Background>(DEFAULT_BACKGROUND);
-
-  // useSearchParams를 쓰면 이 페이지 전체를 Suspense로 감싸야 해서 직접 읽는다.
-  useEffect(() => {
-    const bg = new URLSearchParams(window.location.search).get("bg");
-    if (bg === "map" || bg === "pattern") setBackground(bg);
-  }, []);
 
   return (
-    // 배경이 보여야 하므로 로그인 뭉치는 화면 아래쪽에 모은다.
-    <main
-      className="relative flex min-h-screen flex-col justify-end overflow-hidden
-        bg-[var(--tk-ground)] px-5 pb-10 pt-10"
-    >
-      {background === "map" ? <CityMapBackground /> : <TicketPatternBackground />}
+    <main className="flex min-h-screen flex-col justify-between bg-[var(--tk-ground)] px-5 pb-10 pt-16">
+      {/* 사과 + 이름 */}
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <AppleGauge brix={BRIX_START} size={200} label="사과" />
 
-      <div className="relative z-10 mx-auto w-full max-w-sm">
-        <div className="mb-7 text-center">
-          <h1>
-            <Wordmark size="lg" />
-          </h1>
-          <p className="mt-2 text-[13.5px] text-[var(--tk-sub)]">{TAGLINE}</p>
-        </div>
+        <h1 className="mt-9">
+          <Wordmark size="lg" />
+        </h1>
 
+        <p className="mt-3 text-center text-[15px] leading-relaxed text-[var(--tk-sub)]">
+          약속을 지킨 만큼
+          <br />
+          <b className="font-bold text-[var(--tk-ink)]">내 사과가 익어요</b>
+        </p>
+      </div>
+
+      {/* 로그인 */}
+      <div className="mx-auto w-full max-w-sm">
         <button
           type="button"
           onClick={async () => {
@@ -61,11 +51,10 @@ export default function LoginPage() {
             }
           }}
           disabled={pending}
-          className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl
-            bg-[#FEE500] px-4 py-3.5 text-[15px] font-bold text-[#191600]
-            transition hover:brightness-95 focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-[var(--tk-ink)]
-            disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[12px]
+            bg-[#FEE500] text-[15px] font-bold text-[#191600] transition
+            hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2
+            focus-visible:outline-[var(--tk-ink)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? (
             <>
@@ -86,43 +75,16 @@ export default function LoginPage() {
           )}
         </button>
 
-        <p className="mt-4 text-center text-[12px] leading-relaxed text-[var(--tk-faint)]">
-          약속에 참여한 사람만 그 약속을 볼 수 있습니다.
+        <p className="tk-caption mt-4 text-center text-[var(--tk-faint)]">
+          플랜에 참여한 사람만 그 플랜을 볼 수 있어요
         </p>
 
-        {/* 테스트 관찰용 관리자 화면으로 가는 통로.
-            비밀번호가 따로 있어 눌러도 아무나 들어갈 수 없다. */}
-        {/* 배경 고르는 동안만 두는 임시 전환기. 정해지면 통째로 지운다. */}
-        <div
-          role="group"
-          aria-label="배경 고르기"
-          className="mx-auto mt-8 flex w-fit gap-1 rounded-full bg-[var(--tk-paper)]/70 p-1
-            ring-1 ring-[var(--tk-line)] backdrop-blur-sm"
-        >
-          {BACKGROUNDS.map(({ value, label }) => {
-            const on = background === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setBackground(value)}
-                className={`rounded-full px-3.5 py-1.5 text-[11.5px] transition ${
-                  on
-                    ? "bg-[var(--tk-ink)] font-bold text-[var(--tk-paper)]"
-                    : "font-medium text-[var(--tk-sub)] hover:bg-[var(--tk-ground)]"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 text-center">
+        {/* 테스트 관찰용 관리자 화면. 비밀번호가 따로 있어 눌러도 아무나 못 들어간다. */}
+        <div className="mt-7 text-center">
           <Link
             href="/admin"
-            className="text-[11px] text-[var(--tk-faint)]/60 underline-offset-4 hover:text-[var(--tk-sub)] hover:underline"
+            className="text-[11px] text-[var(--tk-assistive)] underline-offset-4
+              hover:text-[var(--tk-sub)] hover:underline"
           >
             관리자
           </Link>

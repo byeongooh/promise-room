@@ -37,8 +37,8 @@ export default function SharePromise({
       : `/promise/${promiseId}`;
 
   const message = password.trim()
-    ? `"${title}" 약속에 초대합니다.\n${url}\n비밀번호: ${password.trim()}`
-    : `"${title}" 약속에 초대합니다.\n${url}`;
+    ? `"${title}" 플랜에 초대합니다.\n${url}\n비밀번호: ${password.trim()}`
+    : `"${title}" 플랜에 초대합니다.\n${url}`;
 
   const copy = async () => {
     try {
@@ -77,7 +77,7 @@ export default function SharePromise({
 
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="tk-title text-[var(--tk-ink)]">약속 공유하기</DialogTitle>
+          <DialogTitle className="tk-title text-[var(--tk-ink)]">플랜 공유하기</DialogTitle>
           <DialogDescription className="tk-meta text-[var(--tk-sub)]">
             링크를 받은 친구가 비밀번호를 넣으면 참여됩니다.
           </DialogDescription>
@@ -98,7 +98,7 @@ export default function SharePromise({
               id="share-pw"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="약속 비밀번호"
+              placeholder="플랜 비밀번호"
               className="h-11 rounded-xl border-[var(--tk-line)] bg-[var(--tk-paper)]
                 focus-visible:border-[var(--tk-gold)] focus-visible:ring-2
                 focus-visible:ring-[var(--tk-gold)]/25"
@@ -130,7 +130,7 @@ export default function SharePromise({
             {canNativeShare && (
               <Button
                 onClick={nativeShare}
-                className="h-11 flex-1 bg-[var(--tk-gold)] font-bold text-[var(--tk-ink)]
+                className="h-11 flex-1 bg-[var(--tk-gold)] font-bold text-[var(--tk-paper)]
                   hover:bg-[var(--tk-gold)]/90"
               >
                 <Share2 className="size-4 mr-1.5" />

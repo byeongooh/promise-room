@@ -64,7 +64,7 @@ const handleCreatePromise = async (promiseData: {
     router.push(`/promise/${id}`);
   } catch (e) {
     console.error("약속 생성 실패:", e);
-    setError(e instanceof Error ? e.message : "약속을 저장하는 중 오류가 발생했습니다.");
+    setError(e instanceof Error ? e.message : "플랜을 저장하는 중 오류가 발생했습니다.");
   } finally {
     setIsSubmitting(false);
   }
@@ -94,14 +94,14 @@ const handleCreatePromise = async (promiseData: {
           href="/"
           className="-ml-2 mb-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
         >
-          <ArrowLeft className="size-4" /> 대시보드
+          <ArrowLeft className="size-4" /> 홈
         </Link>
 
         <h1 className="text-[22px] font-extrabold tracking-tight text-balance break-keep text-[var(--tk-ink)]">
-          새 약속 만들기
+          새 플랜 만들기
         </h1>
         <p className="mt-1 mb-4 text-[13px] text-[var(--tk-sub)]">
-          장소를 고르고 정보를 채우면 티켓 한 장이 만들어집니다.
+          장소를 고르고 정보를 채우면 플랜 한 장이 만들어져요.
         </p>
 
         {/* 1단계 — 장소 */}
@@ -140,7 +140,7 @@ const handleCreatePromise = async (promiseData: {
             <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
               2
             </span>
-            무슨 약속인가요
+            무슨 플랜인가요
           </p>
           <FallbackCreatePromiseForm onCreate={handleCreatePromise} isSubmitting={isSubmitting} />
         </section>

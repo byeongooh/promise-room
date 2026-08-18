@@ -23,6 +23,9 @@ export interface DrawnRoute {
 import OriginSearch, { type FoundPlace } from "@/components/origin-search";
 import { Button } from "@/components/ui/button";
 import { addMyPlace, listMyPlaces, removeMyPlace, type MyPlace } from "@/lib/my-places";
+import { RouteFailed, RouteSkeleton } from "@/components/route-states";
+import { updateMyMember } from "@/lib/api-client";
+import type { MemberRoute } from "@/lib/types";
 
 // 약속 장소까지 어떻게, 얼마나 걸려 가는지.
 //
@@ -231,16 +234,38 @@ export default function TravelTime({
   destination,
   destinationName,
   onRouteChange,
+  promiseId,
+  savedRoute,
+  onSaved,
 }: {
   destination: { lat: number; lng: number } | null;
   destinationName: string;
   /** 고른 경로를 위 지도에 그리도록 넘긴다. null이면 지도를 원래대로 돌린다. */
   onRouteChange?: (route: DrawnRoute | null) => void;
+  /** 있으면 고른 경로를 서버에 저장한다. 없으면 예전처럼 화면에서만 쓴다. */
+  promiseId?: string;
+  /** 서버에 저장돼 있던 내 경로. 새로고침해도 이걸로 되살린다. */
+  savedRoute?: MemberRoute | null;
+  /** 저장이 끝나면 알려준다. 위 "나가야 하는 시각" 블록이 바로 따라 바뀌도록. */
+  onSaved?: (route: MemberRoute | null, leaveAt: string | null) => void;
 }) {
   const [places, setPlaces] = useState<MyPlace[]>([]);
-  const [selected, setSelected] = useState<string>(CURRENT);
-  const [origin, setOrigin] = useState<Origin | null>(null);
+  // 저장된 경로가 있으면 "지금 있는 곳"으로 시작하지 않는다. 그러면 위치 권한을
+  // 묻는 사이에 출발지가 바뀌어 저장해둔 경로를 되살릴 수 없다.
+  const [selected, setSelected] = useState<string>(savedRoute ? "" : CURRENT);
+  const [origin, setOrigin] = useState<Origin | null>(
+    savedRoute
+      ? {
+          label: savedRoute.origin.label,
+          lat: savedRoute.origin.lat,
+          lng: savedRoute.origin.lng,
+        }
+      : null
+  );
   const [originError, setOriginError] = useState<string | null>(null);
+  /** 아직 되살리지 못한 저장 경로. 후보 목록이 오면 그중 하나를 골라 채운다. */
+  const pendingRestore = useRef<MemberRoute | null>(savedRoute ?? null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   /** 검색으로 고른 곳. 저장 버튼을 띄울지 판단하는 데 쓴다. */
   const [searched, setSearched] = useState<FoundPlace | null>(null);
 
@@ -351,26 +376,43 @@ export default function TravelTime({
     };
   }, [origin, destLat, destLng]);
 
+  // ---------------- 고른 경로를 서버에 남기기 ----------------
+  // 화면에만 그리면 새로고침에 사라지고, 무엇보다 다른 참여자가 볼 수 없다.
+  // 저장이 실패해도 지도는 이미 그려져 있으므로 길찾기 자체는 막지 않는다.
+  const persist = async (route: MemberRoute | null) => {
+    if (!promiseId) return;
+    try {
+      const res = await updateMyMember(promiseId, { route });
+      setSaveError(null);
+      onSaved?.(route, res.leaveAt ?? null);
+    } catch (err) {
+      console.error("[travel-time] 경로 저장 실패:", err);
+      setSaveError("경로를 저장하지 못했습니다. 다른 참여자에게는 아직 안 보입니다.");
+    }
+  };
+
   // ---------------- 경로를 지도에 그리기 ----------------
-  const pick = async (next: Picked) => {
+  /** restoring=true 는 저장된 경로를 되살리는 중이라는 뜻 — 다시 저장하지 않는다. */
+  const pick = async (next: Picked, restoring = false) => {
     setDrawError(null);
 
     // 같은 걸 다시 누르면 접는다 — 눌렀다 뒤로 가는 게 쉬워야 한다.
     if (next === picked || next === null) {
       setPicked(null);
       onRouteChange?.(null);
+      if (!restoring) void persist(null);
       return;
     }
 
     if (next === "car") {
-      const path = routes?.car?.path;
-      if (!path?.length || !origin) {
+      const car = routes?.car;
+      if (!car?.path?.length || !origin) {
         setDrawError("자동차 경로를 그릴 수 없습니다.");
         return;
       }
       setPicked("car");
       onRouteChange?.({
-        segments: [{ kind: "car", label: "자동차", color: ORIGIN_COLOR, points: path }],
+        segments: [{ kind: "car", label: "자동차", color: ORIGIN_COLOR, points: car.path }],
         points: [
           {
             kind: "origin",
@@ -381,6 +423,14 @@ export default function TravelTime({
           },
         ],
       });
+      if (!restoring) {
+        void persist({
+          kind: "car",
+          label: "자동차",
+          durationSec: car.durationSec,
+          origin: { label: origin.label, lat: origin.lat, lng: origin.lng },
+        });
+      }
       return;
     }
 
@@ -405,15 +455,55 @@ export default function TravelTime({
       const data = (await res.json()) as { segments: RouteSegment[] | null };
       if (!data.segments) {
         setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
-        return;
+      } else {
+        onRouteChange?.({ segments: data.segments, points: pointsOf(option, origin) });
       }
-      onRouteChange?.({ segments: data.segments, points: pointsOf(option, origin) });
     } catch {
       setDrawError("노선 정보를 가져오지 못했습니다. 단계는 아래에서 볼 수 있습니다.");
     } finally {
       setDrawing(false);
     }
+
+    // 지도에 못 그렸더라도 무엇을 타고 오는지는 정해진 것이므로 저장한다.
+    if (!restoring) {
+      void persist({
+        kind: "transit",
+        label: option.mode,
+        durationSec: option.durationSec,
+        origin: { label: origin.label, lat: origin.lat, lng: origin.lng },
+        mapObj: option.mapObj,
+        transfers: option.transfers,
+        fare: option.fare,
+        firstStation: option.firstStation,
+      });
+    }
   };
+
+  // ---------------- 저장된 경로 되살리기 ----------------
+  // 후보 목록이 새로 오면, 저장해둔 것과 같은 경로를 찾아 눌린 상태로 만든다.
+  // ODsay 결과는 시간대에 따라 조금씩 달라지므로 mapObj가 같은 것을 먼저 찾고,
+  // 없으면 종류와 소요시간(2분 이내)이 맞는 것을 쓴다.
+  useEffect(() => {
+    const want = pendingRestore.current;
+    if (!want || !routes) return;
+    pendingRestore.current = null;
+
+    if (want.kind === "car") {
+      if (routes.car?.path?.length) void pick("car", true);
+      return;
+    }
+
+    const list = routes.transit ?? [];
+    let idx = want.mapObj ? list.findIndex((t) => t.mapObj === want.mapObj) : -1;
+    if (idx === -1) {
+      idx = list.findIndex(
+        (t) => t.mode === want.label && Math.abs(t.durationSec - want.durationSec) <= 120
+      );
+    }
+    if (idx >= 0) void pick(idx, true);
+    // pick은 매 렌더 새로 만들어지지만 여기서는 routes가 바뀔 때만 돌면 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routes]);
 
   // ---------------- 저장된 출발지 ----------------
   const saveSearched = () => {
@@ -519,16 +609,18 @@ export default function TravelTime({
           </p>
         ) : !destination ? (
           <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
-            약속 장소에 좌표가 없어 계산할 수 없습니다.
+            플랜 장소에 좌표가 없어 계산할 수 없습니다.
           </p>
         ) : routeState === "loading" ? (
-          <p className="tk-meta flex items-center gap-1.5 rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-faint)]">
-            <Loader2 className="size-3.5 animate-spin" />경로를 찾는 중…
-          </p>
+          <RouteSkeleton step={1} />
         ) : routeState === "unavailable" || !routes ? (
-          <p className="tk-meta rounded-xl bg-[var(--tk-ground)] px-4 py-3 text-[var(--tk-sub)]">
-            경로를 찾지 못했습니다.
-          </p>
+          <RouteFailed
+            destinationName={destinationName}
+            kakaoMapUrl={kakaoMapUrl}
+            // 출발지를 살짝 흔들어 위 effect를 다시 돌린다.
+            onRetry={() => origin && setOrigin({ ...origin })}
+            onUseCurrent={() => setSelected(CURRENT)}
+          />
         ) : (
           <>
             <p className="tk-caption mb-2 text-[var(--tk-faint)]">
@@ -573,6 +665,7 @@ export default function TravelTime({
             </ul>
 
             {drawError && <p className="tk-caption mt-2 text-[var(--tk-warn)]">{drawError}</p>}
+            {saveError && <p className="tk-caption mt-2 text-[var(--tk-warn)]">{saveError}</p>}
 
             {picked !== null && (
               <button

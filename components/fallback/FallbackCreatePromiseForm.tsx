@@ -52,7 +52,7 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
     >
       <div className="space-y-1.5">
         <Label htmlFor="title" className="tk-field-label text-[var(--tk-sub)]">
-          약속명
+          플랜 이름
         </Label>
         <Input
           id="title"
@@ -134,7 +134,7 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="h-12 w-full rounded-xl bg-[var(--tk-gold)] text-[14.5px] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+        className="h-12 w-full rounded-xl bg-[var(--tk-gold)] text-[14.5px] font-bold text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
       >
         {isSubmitting ? (
           <>
@@ -142,7 +142,7 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
             만드는 중…
           </>
         ) : (
-          "약속 만들기"
+          "플랜 만들기"
         )}
       </Button>
     </form>

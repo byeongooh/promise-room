@@ -22,6 +22,7 @@ import {
   getDoc,
   doc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
@@ -112,6 +113,16 @@ await check("내 약속 문서 직접 읽기", true, async () => {
   return s.exists() ? "읽힘" : "문서 없음";
 });
 await check("비밀번호 해시 읽기", false, () => getDoc(doc(db, "promises", DOC_ID, "private", "auth")));
+await check("참여자 상태 목록 읽기", true, async () => {
+  const s = await getDocs(collection(db, "promises", DOC_ID, "members"));
+  return `${s.size}건`;
+});
+await check("참여자 상태 직접 쓰기", false, () =>
+  setDoc(doc(db, "promises", DOC_ID, "members", OWNER), { status: "arrived" })
+);
+await check("남의 상태 직접 쓰기", false, () =>
+  setDoc(doc(db, "promises", DOC_ID, "members", "kakao:9999999999"), { status: "arrived" })
+);
 await check("조건 없이 전체 컬렉션 조회", false, () => getDocs(collection(db, "promises")));
 await check("문서 직접 수정", false, () => updateDoc(doc(db, "promises", DOC_ID), { title: "해킹" }));
 await check("문서 직접 삭제", false, () => deleteDoc(doc(db, "promises", DOC_ID)));
@@ -123,6 +134,9 @@ console.log(`\n[참여자가 아닌 사람]`);
 await signOut(auth);
 await signInAs(OUTSIDER);
 await check("남의 약속 문서 읽기", false, () => getDoc(doc(db, "promises", DOC_ID)));
+await check("남의 약속 참여자 상태 읽기", false, () =>
+  getDocs(collection(db, "promises", DOC_ID, "members"))
+);
 await check("본인 조건으로 목록 조회 (0건이어야 정상)", true, async () => {
   const s = await getDocs(
     query(

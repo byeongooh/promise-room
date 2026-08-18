@@ -11,11 +11,11 @@ import { doc, getDoc } from "firebase/firestore";
 // ✅ NextAuth
 import { useSession } from "next-auth/react";
 
-import type { PromiseData } from "../../../lib/types";
+import type { MemberRoute, PromiseData, PromiseMember } from "../../../lib/types";
+import { toCanonicalUid } from "../../../lib/uid";
 import {
   isPromiseOwner,
   isPromiseParticipant,
-  getParticipantNames,
 } from "../../../lib/promise-permissions";
 
 // 쓰기(참여/탈퇴/삭제)는 모두 서버 API를 거친다.
@@ -30,6 +30,8 @@ import { useFirebaseAuth } from "../../../components/firebase-auth-provider";
 import SharePromise from "../../../components/share-promise";
 import TravelTime, { type DrawnRoute } from "../../../components/travel-time";
 import PromiseMap from "../../../components/promise-map";
+import MemberBoard from "../../../components/member-board";
+import DepartureBlock from "../../../components/departure-block";
 import {
   displayLocation,
   formatWhen,
@@ -104,6 +106,12 @@ export default function PromisePage() {
   // 참여자가 아닐 때 비밀번호 화면에 쓸 최소 정보 (제목만)
   const [summary, setSummary] = useState<PromiseSummary | null>(null);
 
+  // 서버에 저장해둔 내 경로. 아래 "어떻게 갈까"를 이 값으로 시작해야 해서,
+  // 다 읽기 전에는 그 칸을 그리지 않는다 (나중에 오면 되살릴 수 없다).
+  const [myRoute, setMyRoute] = useState<MemberRoute | null>(null);
+  const [myLeaveAt, setMyLeaveAt] = useState<string | null>(null);
+  const [memberLoaded, setMemberLoaded] = useState(false);
+
   // 접근 제어
   const [hasAccess, setHasAccess] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -150,6 +158,23 @@ export default function PromisePage() {
           isPromiseOwner(merged, currentUserId, currentUser ?? undefined) ||
             isPromiseParticipant(merged, currentUserId, currentUser ?? undefined)
         );
+
+        // 지난번에 고른 경로. 보안 규칙을 아직 배포하지 않았으면 못 읽는데,
+        // 그건 길찾기를 막을 이유가 아니라서 조용히 빈 값으로 넘어간다.
+        const uid = toCanonicalUid(currentUserId);
+        if (uid) {
+          try {
+            const mine = await getDoc(doc(db, "promises", id, "members", uid));
+            const m = mine.exists() ? (mine.data() as PromiseMember) : null;
+            setMyRoute(m?.route ?? null);
+            setMyLeaveAt(m?.leaveAt ?? null);
+          } catch (e) {
+            console.warn("저장된 경로를 읽지 못함 (규칙 배포 전일 수 있음):", e);
+            setMyRoute(null);
+            setMyLeaveAt(null);
+          }
+        }
+        setMemberLoaded(true);
         return;
       }
     } catch (e) {
@@ -167,6 +192,7 @@ export default function PromisePage() {
       setPromiseData(null);
       setHasAccess(false);
     }
+    setMemberLoaded(true);
   };
 
   // Firebase 로그인까지 끝난 뒤에 조회한다 (그 전에 쏘면 권한 오류가 난다)
@@ -183,7 +209,7 @@ export default function PromisePage() {
     if (!promiseData || !promiseId) return;
 
     if (!isPromiseOwner(promiseData, currentUserId, currentUser ?? undefined)) {
-      alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+      alert("이 플랜은 만든 사람만 삭제할 수 있습니다.");
       return;
     }
 
@@ -195,7 +221,7 @@ export default function PromisePage() {
       window.location.href = "/";
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : "약속 삭제 중 오류가 발생했습니다.");
+      alert(err instanceof Error ? err.message : "플랜 삭제 중 오류가 발생했습니다.");
     } finally {
       setIsDeleting(false);
     }
@@ -229,7 +255,7 @@ export default function PromisePage() {
     if (!promiseData || !promiseId) return;
 
     if (isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined)) {
-      alert("이미 이 약속에 참여 중입니다.");
+      alert("이미 이 플랜에 참여 중입니다.");
       return;
     }
 
@@ -242,13 +268,13 @@ export default function PromisePage() {
     if (!promiseData || !promiseId) return;
 
     if (!isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined)) {
-      alert("이 약속에 아직 참여하지 않았습니다.");
+      alert("이 플랜에 아직 참여하지 않았습니다.");
       return;
     }
 
     try {
       await apiLeavePromise(promiseId);
-      alert("약속 참여가 취소되었습니다.");
+      alert("플랜 참여가 취소되었습니다.");
       router.push("/");
     } catch (err) {
       console.error(err);
@@ -274,11 +300,11 @@ export default function PromisePage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">
-            약속을 찾을 수 없습니다 (ID: {promiseId || "없음"})
+            플랜을 찾을 수 없습니다 (ID: {promiseId || "없음"})
           </p>
           <Button variant="ghost" asChild>
             <Link href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" /> 대시보드
+              <ArrowLeft className="w-4 h-4 mr-2" /> 홈
             </Link>
           </Button>
         </div>
@@ -287,61 +313,88 @@ export default function PromisePage() {
   }
 
   if (!hasAccess || !promiseData) {
+    // 링크를 받은 사람이 앱에서 처음 보는 화면이다.
+    // 제목만 보여주고 날짜·장소·참여자 자리는 가려둔다 — 무엇이 가려졌는지
+    // 보여줘야 "들어가면 뭘 볼 수 있는지"가 전달된다.
+    //
+    // 시안에는 4자리 숫자 키패드가 있었는데 넣지 않았다. 이 앱의 비밀번호는
+    // "4자 이상 아무 문자"라(lib/password.ts) 키패드로 바꾸면 글자가 섞였거나
+    // 5자 이상인 기존 약속에 아무도 못 들어간다.
     return (
-      <div className="min-h-screen bg-[var(--tk-ground)] flex items-center justify-center p-6">
-        <Card className="w-full max-w-md rounded-2xl border-0 bg-[var(--tk-paper)] shadow-sm ring-1 ring-black/5">
-          <CardHeader className="text-center pb-2">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Lock className="w-5 h-5 text-[var(--tk-gold)]" />
-              <CardTitle className="text-xl text-[var(--tk-ink)]">비밀번호 입력</CardTitle>
-            </div>
-            <CardDescription className="text-base">
-              "{summary?.title ?? promiseData?.title}" 약속에 참여하려면 비밀번호가 필요합니다.
-            </CardDescription>
-          </CardHeader>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--tk-ground)] p-5">
+        <div className="w-full max-w-sm">
+          <p className="tk-label mb-2 text-[var(--tk-faint)]">초대받은 플랜</p>
+          <h1 className="tk-display mb-4 text-[var(--tk-ink)]">
+            {summary?.title ?? promiseData?.title ?? "플랜"}
+          </h1>
 
-          <CardContent className="px-6 pb-6">
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">비밀번호</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="비밀번호를 입력하세요"
-                  value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value);
-                    setPasswordError(null);
-                  }}
-                  autoFocus
-                  className="text-lg py-2"
-                  disabled={isJoining}
-                />
-                {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button type="button" variant="outline" className="w-1/3" asChild>
-                  <Link href="/">취소</Link>
-                </Button>
-                <Button type="submit" className="w-2/3" disabled={isJoining}>
-                  {isJoining ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      확인 중...
-                    </>
-                  ) : (
-                    "확인하고 참여하기"
-                  )}
-                </Button>
-              </div>
-            </form>
-
-            <p className="mt-4 text-xs text-center text-muted-foreground">
-              로그인: <b>{currentUser ?? "사용자"}</b>
+          {/* 가려진 것들 */}
+          <div className="mb-3 space-y-2 rounded-xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-[var(--tk-line)]">
+            {[68, 52, 44].map((w) => (
+              <span
+                key={w}
+                aria-hidden="true"
+                className="block h-3 rounded bg-[var(--tk-line)]"
+                style={{ width: `${w}%` }}
+              />
+            ))}
+            <p className="tk-caption pt-1 text-[var(--tk-faint)]">
+              날짜 · 장소 · 누가 오는지는 들어간 뒤에 보여요
             </p>
-          </CardContent>
-        </Card>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-2.5">
+            <Input
+              id="password"
+              type="password"
+              inputMode="text"
+              placeholder="비밀번호"
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value);
+                setPasswordError(null);
+              }}
+              autoFocus
+              disabled={isJoining}
+              className="h-[52px] rounded-[12px] border-[var(--tk-line)] bg-[var(--tk-paper)]
+                text-center text-[17px] tracking-[0.3em] placeholder:tracking-normal"
+            />
+
+            {passwordError && (
+              <p className="tk-caption text-center text-[var(--tk-warn)]">{passwordError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isJoining || passwordInput.length === 0}
+              className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[12px]
+                bg-[var(--tk-ink)] text-[15px] font-bold text-[var(--tk-paper)]
+                transition hover:brightness-110
+                disabled:bg-[var(--tk-disable)] disabled:text-[var(--tk-assistive)]"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  확인 중…
+                </>
+              ) : (
+                "들어가기"
+              )}
+            </button>
+
+            <Button type="button" variant="ghost" className="h-11 w-full" asChild>
+              <Link href="/">취소</Link>
+            </Button>
+          </form>
+
+          <p className="tk-caption mt-5 text-center leading-relaxed text-[var(--tk-faint)]">
+            들어가면 이제 참여자예요. 출발지만 정하면
+            <br />몇 시에 나가야 하는지 알려드려요.
+          </p>
+          <p className="tk-caption mt-3 text-center text-[var(--tk-assistive)]">
+            로그인 · {currentUser ?? "사용자"}
+          </p>
+        </div>
       </div>
     );
   }
@@ -349,8 +402,6 @@ export default function PromisePage() {
   const isOwner = isPromiseOwner(promiseData, currentUserId, currentUser ?? undefined);
   const isParticipant = isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined);
   const displayCreatorName = promiseData.creatorName ?? promiseData.creator ?? "알 수 없음";
-  const participantNames = getParticipantNames(promiseData);
-
 
   const countdown = getCountdown(getPromiseDate(promiseData));
   const stubTone =
@@ -370,7 +421,7 @@ export default function PromisePage() {
             href="/"
             className="-ml-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--tk-sub)] hover:text-[var(--tk-ink)]"
           >
-            <ArrowLeft className="size-4" /> 대시보드
+            <ArrowLeft className="size-4" /> 홈
           </Link>
 
           <div className="flex items-center gap-2">
@@ -394,9 +445,9 @@ export default function PromisePage() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>이 약속을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogTitle>이 플랜을 삭제할까요?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    참여자 모두에게서 사라지고 되돌릴 수 없습니다.
+                    참여자 모두에게서 사라지고 되돌릴 수 없어요.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -446,10 +497,19 @@ export default function PromisePage() {
           </div>
         </div>
 
+        {/* 나가야 하는 시각 — 이 앱이 파는 값이라 지도보다 위에 둔다 */}
+        <DepartureBlock
+          leaveAt={myLeaveAt}
+          route={myRoute}
+          onChange={() =>
+            document.getElementById("how-to-go")?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+        />
+
         {/* 약속 장소 — 경로를 고르면 이 지도 위에 그려진다 */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
           <p className="mb-2.5 tk-label text-[var(--tk-faint)]">
-            {mapRoute ? "가는 길" : "약속 장소"}
+            {mapRoute ? "가는 길" : "플랜 장소"}
           </p>
           <PromiseMap
             destination={destinationCoord}
@@ -492,36 +552,30 @@ export default function PromisePage() {
           )}
         </section>
 
-        {/* 얼마나 걸리는지 */}
-        <TravelTime
-          destination={destinationCoord}
-          destinationName={displayLocation(promiseData.location)}
-          onRouteChange={setMapRoute}
-        />
+        {/* 얼마나 걸리는지 — 저장된 경로를 다 읽은 뒤에 그려야 되살릴 수 있다 */}
+        {memberLoaded && (
+          <div id="how-to-go">
+            <TravelTime
+              destination={destinationCoord}
+              destinationName={displayLocation(promiseData.location)}
+              onRouteChange={setMapRoute}
+              promiseId={promiseId}
+              savedRoute={myRoute}
+              onSaved={(route, leaveAt) => {
+                // 경로를 고르는 즉시 위 출발 시각 블록이 따라 바뀌어야 한다.
+                setMyRoute(route);
+                setMyLeaveAt(leaveAt);
+              }}
+            />
+          </div>
+        )}
 
-        {/* 참여자 */}
-        <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
-          <p className="mb-3 tk-label text-[var(--tk-faint)]">
-            참여자 {participantNames.length}명
-          </p>
-          {participantNames.length === 0 ? (
-            <p className="tk-meta py-2 text-[var(--tk-faint)]">아직 참여자가 없습니다.</p>
-          ) : (
-            <ul className="space-y-2.5">
-              {participantNames.map((n, i) => (
-                <li key={`${n}-${i}`} className="flex items-center gap-2.5">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--tk-ground)] text-[12px] font-bold text-[var(--tk-ink)]">
-                    {n.trim().charAt(0) || "?"}
-                  </span>
-                  <span className="tk-meta font-medium text-[var(--tk-ink)]">{n}</span>
-                  {n === displayCreatorName && (
-                    <span className="tk-caption text-[var(--tk-faint)]">약속 생성자</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* 참여자 — 누가 무엇을 타고 오는지, 지금 어디쯤인지 */}
+        <MemberBoard
+          promiseId={promiseId}
+          promiseData={promiseData}
+          myUid={currentUserId}
+        />
 
         {/* 알림 (아직 동작하지 않음) */}
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
@@ -560,7 +614,7 @@ export default function PromisePage() {
           <Button
             onClick={handleJoinPromise}
             disabled={isJoining}
-            className="w-full bg-[var(--tk-gold)] py-6 text-[14px] font-bold text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+            className="w-full bg-[var(--tk-gold)] py-6 text-[14px] font-bold text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
           >
             {isJoining ? (
               <>
@@ -568,7 +622,7 @@ export default function PromisePage() {
                 참여 중...
               </>
             ) : (
-              "이 약속에 참여하기"
+              "이 플랜에 참여하기"
             )}
           </Button>
         )}

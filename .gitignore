@@ -36,3 +36,9 @@ next-env.d.ts
 
 # 마이그레이션 백업 (평문 비밀번호 포함 — 절대 커밋 금지)
 .migration-backup/
+
+# Applan 디자인 핸드오프 원본 (폰트·번들 포함 11MB+).
+# 코드로 이미 옮겨왔고 앱 빌드에는 쓰이지 않는다. README와 PRD만 참고하려면
+# 압축 안 풀고 zip 상태로 따로 보관해도 된다.
+design_handoff_applan/
+Senior appointment app redesign.zip

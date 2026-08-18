@@ -19,6 +19,8 @@ import {
 import { deletePromise } from "@/lib/api-client";
 import { useFirebaseAuth } from "@/components/firebase-auth-provider";
 import PromiseTicket from "@/components/promise-ticket";
+import AppleSummary from "@/components/apple-summary";
+import TabBar from "@/components/tab-bar";
 import Wordmark from "@/components/wordmark";
 import SharePromise from "@/components/share-promise";
 import {
@@ -35,7 +37,6 @@ import { Button } from "../components/ui/button";
 import {
   CalendarDays,
   MapPin,
-  PlusCircle,
   Share2,
   TriangleAlert,
   Trash2,
@@ -51,7 +52,7 @@ import {
 } from "../components/ui/dialog";
 
 // ✅ NextAuth (카카오 로그인)
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import type { PromiseData } from "../lib/types";
@@ -117,7 +118,7 @@ export default function HomePage() {
         setLoadError(
           err.code === "failed-precondition"
             ? "색인이 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
-            : "약속 목록을 불러오지 못했습니다."
+            : "플랜 목록을 불러오지 못했습니다."
         );
         setLoading(false);
       }
@@ -204,7 +205,7 @@ export default function HomePage() {
   const handleDelete = async () => {
     if (!selectedId) return;
     if (!detail || !isPromiseOwner(detail, currentUserId, kakaoName ?? undefined)) {
-      alert("이 약속은 만든 사람만 삭제할 수 있습니다.");
+      alert("이 플랜은 만든 사람만 삭제할 수 있습니다.");
       return;
     }
 
@@ -214,15 +215,10 @@ export default function HomePage() {
       closeDetail();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "약속 삭제 중 오류가 발생했습니다.");
+      alert(e instanceof Error ? e.message : "플랜 삭제 중 오류가 발생했습니다.");
     } finally {
       setDeleting(false);
     }
-  };
-
-  // ✅ 로그아웃은 NextAuth만
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: "/login" });
   };
 
   // 로딩 중 화면
@@ -245,33 +241,30 @@ export default function HomePage() {
     <div className="min-h-screen bg-[var(--tk-ground)]">
       {/* 다른 화면과 같은 폭을 쓴다. 넓게 늘리면 카드가 휑해지고
           글자가 상대적으로 작아 보인다. */}
-      <div className="container mx-auto max-w-lg px-4 py-5">
+      <div className="container mx-auto max-w-lg px-4 pb-24 pt-5">
         {/* 헤더: 좁은 화면에서는 제목과 조작부를 위아래로 나눈다.
             (예전에는 한 줄로 붙어 있어 이름이 세로로 쭈그러들었다) */}
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1>
-              <Wordmark size="md" className="sm:hidden" />
-              <Wordmark size="lg" className="max-sm:hidden" />
-            </h1>
-            <p className="tk-meta mt-1.5 truncate text-[var(--tk-sub)]">
-              {kakaoName ? `${kakaoName}님의 약속` : "친구들과 함께하는 약속 관리"}
-            </p>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {/* 손가락으로 누르는 화면이라 높이를 44px 이상으로 잡는다 */}
-            <Link href="/create">
-              <Button className="h-11 bg-[var(--tk-gold)] px-4 text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90">
-                <PlusCircle className="w-4 h-4 mr-1.5" />
-                새 약속
-              </Button>
-            </Link>
-            <Button variant="outline" onClick={handleLogout} className="h-11 px-3.5">
-              로그아웃
-            </Button>
-          </div>
+        {/* 시안 1-1: 헤더는 워드마크 + 아바타만. 새 플랜은 아래 탭바 가운데로,
+            로그아웃은 내 사과 화면으로 옮겼다. */}
+        <header className="mb-4 flex items-center justify-between">
+          <h1>
+            <Wordmark size="md" />
+          </h1>
+          <Link
+            href="/me"
+            aria-label="내 사과"
+            className="grid size-9 place-items-center rounded-full bg-[var(--tk-ground)]
+              text-[13px] font-bold text-[var(--tk-ink)] ring-1 ring-[var(--tk-line)]
+              transition hover:brightness-95"
+          >
+            {kakaoName?.trim().charAt(0) || "나"}
+          </Link>
         </header>
+
+        {/* 내 사과 — 목록보다 위에 둔다.
+            플랜이 0개인 주에도 앱을 열 이유가 되는 것이 이 카드의 존재 이유라,
+            아래 목록이 비어 있든 오류든 이 카드는 항상 남는다. */}
+        <AppleSummary uid={currentUserId} ready={firebaseReady} />
 
         {loading ? (
           <div className="rounded-2xl bg-[var(--tk-paper)] py-10 text-center tk-meta text-[var(--tk-faint)] shadow-sm ring-1 ring-black/5">
@@ -280,7 +273,7 @@ export default function HomePage() {
         ) : loadError ? (
           <div className="rounded-2xl bg-[var(--tk-paper)] px-6 py-14 text-center shadow-sm ring-1 ring-[var(--tk-warn)]/25">
             <div className="mb-2 text-3xl">⚠️</div>
-            <h2 className="tk-title mb-1 text-[var(--tk-ink)]">약속을 불러오지 못했습니다</h2>
+            <h2 className="tk-title mb-1 text-[var(--tk-ink)]">플랜을 불러오지 못했습니다</h2>
             <p className="tk-meta mb-4 text-[var(--tk-sub)]">{loadError}</p>
             <Button variant="outline" className="h-11" onClick={() => window.location.reload()}>
               다시 시도
@@ -292,7 +285,7 @@ export default function HomePage() {
           <div className="flex flex-col gap-3">
             {upcoming.length > 0 && (
               <p className="px-1 tk-label text-[var(--tk-faint)]">
-                다가오는 약속
+                다가오는 플랜
               </p>
             )}
             {upcoming.map((p) => (
@@ -301,7 +294,7 @@ export default function HomePage() {
 
             {past.length > 0 && (
               <p className="mt-4 px-1 tk-label text-[var(--tk-faint)]">
-                지난 약속
+                지난 플랜
               </p>
             )}
             {past.map((p) => (
@@ -319,7 +312,7 @@ export default function HomePage() {
             </div>
           ) : !detail ? (
             <div className="py-8 text-center tk-meta text-[var(--tk-faint)]">
-              약속을 찾을 수 없습니다.
+              플랜을 찾을 수 없습니다.
             </div>
           ) : (
             <>
@@ -397,10 +390,14 @@ export default function HomePage() {
                 )}
               </div>
 
-              <DialogFooter className="mt-4 gap-2 sm:justify-between">
+              {/* shadcn DialogFooter 기본값은 모바일에서 flex-col-reverse라
+                  DOM 순서와 화면 순서가 뒤집힌다. 그대로 두면 보조 버튼(공유·삭제)이
+                  위에, 주 버튼(자세히 보기)이 아래에 온다. flex-col로 고정해서
+                  적은 그대로의 순서(주 버튼 먼저)로 보이게 한다. */}
+              <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row sm:justify-between">
                 <Button
                   asChild
-                  className="bg-[var(--tk-gold)] text-[var(--tk-ink)] hover:bg-[var(--tk-gold)]/90"
+                  className="bg-[var(--tk-gold)] text-[var(--tk-paper)] hover:bg-[var(--tk-gold)]/90"
                 >
                   <Link href={`/promise/${detail.id}`}>
                     <ExternalLink className="w-4 h-4 mr-2" />
@@ -441,6 +438,8 @@ export default function HomePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <TabBar />
     </div>
   );
 }

@@ -11,6 +11,7 @@ const FieldValue = admin.firestore.FieldValue;
 const COLLECTION = "promises";
 const PRIVATE = "private";
 const AUTH_DOC = "auth";
+const MEMBERS = "members";
 
 // 비밀번호 시도 제한: 10분 안에 10회
 const MAX_ATTEMPTS = 10;
@@ -27,6 +28,15 @@ function authRef(promiseId: string) {
 /** uid에 ':' 가 들어있어 문서 ID로 쓰기 위해 치환한다. */
 function attemptsRef(promiseId: string, uid: string) {
   return promiseRef(promiseId).collection(PRIVATE).doc(`attempts_${uid.replace(/[:/]/g, "_")}`);
+}
+
+/**
+ * 참여자 상태 문서. 문서 ID를 uid 그대로 쓴다 — Firestore 문서 ID에서 금지된
+ * 문자는 '/' 뿐이라 "kakao:123"은 그대로 쓸 수 있고, 그래야 화면에서
+ * 목록을 뒤지지 않고 곧바로 내 문서를 집을 수 있다.
+ */
+function memberRef(promiseId: string, uid: string) {
+  return promiseRef(promiseId).collection(MEMBERS).doc(uid);
 }
 
 export interface CreatePromiseInput {
@@ -247,6 +257,9 @@ export async function leavePromise(caller: Caller, promiseId: string): Promise<v
   }
 
   await promiseRef(promiseId).update(updates);
+
+  // 나간 사람의 경로·상태가 남아 있으면 참여자 목록에 없는 이름이 현황에 뜬다.
+  await memberRef(promiseId, caller.uid).delete().catch(() => {});
 }
 
 // ---------------------------------------------------------------- 삭제
@@ -260,10 +273,149 @@ export async function deletePromise(caller: Caller, promiseId: string): Promise<
     throw forbidden("이 약속은 만든 사람만 삭제할 수 있습니다.");
   }
 
-  // Firestore는 하위 컬렉션을 자동으로 지우지 않는다. 해시/시도기록이 남지 않게 같이 지운다.
-  const privateDocs = await ref.collection(PRIVATE).listDocuments();
+  // Firestore는 하위 컬렉션을 자동으로 지우지 않는다.
+  // 해시·시도기록·참여자 상태가 유령으로 남지 않게 같이 지운다.
+  const [privateDocs, memberDocs] = await Promise.all([
+    ref.collection(PRIVATE).listDocuments(),
+    ref.collection(MEMBERS).listDocuments(),
+  ]);
   const batch = db.batch();
   privateDocs.forEach((d) => batch.delete(d));
+  memberDocs.forEach((d) => batch.delete(d));
   batch.delete(ref);
   await batch.commit();
+}
+
+// ---------------------------------------------------------------- 참여자 상태
+
+export type MemberStatus = "unknown" | "onway" | "arrived";
+
+export interface MemberRouteInput {
+  kind: "car" | "transit";
+  label: string;
+  durationSec: number;
+  origin: { label: string; lat: number; lng: number };
+  mapObj?: string | null;
+  transfers?: number | null;
+  fare?: number | null;
+  firstStation?: string | null;
+}
+
+/**
+ * 약속 시각을 UTC 기준 Date로 만든다.
+ *
+ * 문서에는 날짜가 "2026-08-17", 시간이 "19:00" 처럼 한국 현지 시각으로만
+ * 들어 있다. 서버(Vercel)는 UTC로 도니까 `new Date(y, m-1, d)`로 만들면
+ * 9시간이 밀린다. 그래서 KST(UTC+9)임을 명시해서 만든다.
+ */
+function promiseInstant(data: FirebaseFirestore.DocumentData): Date | null {
+  const raw = data.date;
+  let y: number, m: number, d: number;
+
+  if (raw && typeof raw.toDate === "function") {
+    // 옛 문서는 date가 Timestamp다. 이미 절대 시각이라 그대로 쓴다.
+    const base = raw.toDate() as Date;
+    if (Number.isNaN(base.getTime())) return null;
+    return base;
+  }
+
+  if (typeof raw !== "string") return null;
+  [y, m, d] = raw.split("-").map(Number);
+  if (!y || !m || !d) return null;
+
+  const [hh, mm] = String(data.time ?? "").split(":").map(Number);
+  const instant = new Date(
+    Date.UTC(y, m - 1, d, (Number.isFinite(hh) ? hh : 0) - 9, Number.isFinite(mm) ? mm : 0)
+  );
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}
+
+/** 참여자가 아니면 던진다. 상태 관련 쓰기는 전부 이걸 먼저 통과한다. */
+async function requireParticipant(
+  promiseId: string,
+  caller: Caller
+): Promise<FirebaseFirestore.DocumentData> {
+  const snap = await promiseRef(promiseId).get();
+  if (!snap.exists) throw notFound("약속을 찾을 수 없습니다.");
+  const data = snap.data()!;
+  if (!isParticipantOf(data, caller) && !isCreatorOf(data, caller)) {
+    throw forbidden("이 약속의 참여자가 아닙니다.");
+  }
+  return data;
+}
+
+/**
+ * 고른 경로를 저장한다. null이면 지운다(= 아직 안 정한 상태로 되돌린다).
+ *
+ * 언제 나서야 하는지(leaveAt)를 여기서 같이 계산해 둔다. 알림을 보낼 주체는
+ * 결국 서버이고, 그때 가서 경로마다 다시 계산하는 것보다 저장 시점에 한 번
+ * 박아두는 편이 낫다. 알림을 몇 분 전에 보낼지는 별개 문제로 남겨둔다.
+ */
+export async function setMemberRoute(
+  caller: Caller,
+  promiseId: string,
+  route: MemberRouteInput | null
+): Promise<{ leaveAt: string | null }> {
+  const data = await requireParticipant(promiseId, caller);
+  const ref = memberRef(promiseId, caller.uid);
+
+  if (!route) {
+    await ref.set(
+      {
+        uid: caller.uid,
+        name: caller.name?.trim() || "이름 없음",
+        route: null,
+        leaveAt: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return { leaveAt: null };
+  }
+
+  const meetAt = promiseInstant(data);
+  const leaveAt = meetAt
+    ? new Date(meetAt.getTime() - route.durationSec * 1000).toISOString()
+    : null;
+
+  await ref.set(
+    {
+      uid: caller.uid,
+      name: caller.name?.trim() || "이름 없음",
+      route: {
+        kind: route.kind,
+        label: route.label,
+        durationSec: route.durationSec,
+        origin: route.origin,
+        mapObj: route.mapObj ?? null,
+        transfers: route.transfers ?? null,
+        fare: route.fare ?? null,
+        firstStation: route.firstStation ?? null,
+      },
+      leaveAt,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { leaveAt };
+}
+
+/** 확인 안 함 / 가는 중 / 도착. 본인 것만 바꿀 수 있다. */
+export async function setMemberStatus(
+  caller: Caller,
+  promiseId: string,
+  status: MemberStatus
+): Promise<void> {
+  await requireParticipant(promiseId, caller);
+
+  await memberRef(promiseId, caller.uid).set(
+    {
+      uid: caller.uid,
+      name: caller.name?.trim() || "이름 없음",
+      status,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

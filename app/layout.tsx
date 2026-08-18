@@ -5,7 +5,7 @@ import "./globals.css"
 import Providers from "@/components/providers";
 import FirebaseAuthProvider from "@/components/firebase-auth-provider";
 
-// 워드마크 전용 서체. 본문은 계속 시스템 한글 폰트를 쓴다.
+// 워드마크(Applan) 전용 라틴 서체. 본문은 Pretendard(globals.css).
 const archivo = Archivo({
   subsets: ["latin"],
   weight: ["900"],
@@ -14,8 +14,8 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "Promise Room - 약속 관리",
-  description: "친구들과 함께하는 약속 관리 앱",
+  title: "Applan — 약속을 지킨 만큼 사과가 익어요",
+  description: "친구와 플랜을 잡고, 지킨 만큼 내 사과가 익는 앱",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
