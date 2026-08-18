@@ -650,6 +650,27 @@ export default function TravelTime({
                 믿으면 안 된다 — 그 시간대엔 실제로 안 다닐 수 있는데, 이 값은
                 낮에 물어도 같은 숫자가 나온다(ODsay가 운행시간을 안 따진다).
                 "몇 시부터 다닌다"는 확인 못 했으니 지어내지 않고, 사실만 말한다. */}
+            {/* 자동차는 됐는데 대중교통만 빈 경우. ODsay가 가끔 일시적으로 빈 응답을
+                주기도 하고, 진짜 경로가 없을 수도 있어 어느 쪽인지 우리도 확신할 수
+                없다 — 그래서 "없다"고 단정하지 않고 다시 시도할 길을 준다. */}
+            {(!routes.transit || routes.transit.length === 0) && (
+              <p className="tk-caption mb-2 flex items-start gap-1.5 rounded-xl
+                bg-[var(--tk-ground)] px-3.5 py-2.5 text-[var(--tk-sub)]">
+                <TrainFront className="mt-[1px] size-3.5 shrink-0 text-[var(--tk-faint)]" />
+                <span className="flex-1">
+                  지금은 대중교통 경로를 가져오지 못했어요. 실제로 다니는 차가 없을 수도
+                  있고, 잠깐 안 될 수도 있어요.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => origin && setOrigin({ ...origin })}
+                  className="shrink-0 font-bold text-[var(--tk-ink)] underline underline-offset-2"
+                >
+                  다시 시도
+                </button>
+              </p>
+            )}
+
             {routes.transit && routes.transit.length > 0 && meetingAt && isLikelyDeadHour(meetingAt) && (
               <p className="tk-caption mb-2 flex items-start gap-1.5 rounded-xl
                 bg-[var(--ap-honey-weak)] px-3.5 py-2.5 text-[var(--tk-sub)]">

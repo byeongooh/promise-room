@@ -150,6 +150,34 @@ type OdsayResult = {
   paths: OdsayPath[];
 };
 
+/**
+ * call()이 실패하면 한 번 더 시도한다. ODsay가 가끔 일시적으로 빈 응답을
+ * 주는 걸 실제로 봤다(방금까지 통하던 좌표 조합이 다음 요청에 0건으로
+ * 돌아온 적 있음). 두 번 다 실패하면 그때는 진짜 원인을 로그에 남기고
+ * 포기한다 — 전에는 여기서 조용히 빈 배열로 삼켜서, 진짜 API 오류인지
+ * 그냥 경로가 없는지 로그만 보고는 구분할 수 없었다.
+ */
+async function callWithRetry(
+  origin: Coordinate,
+  destination: Coordinate,
+  key: string,
+  searchType: 0 | 1
+): Promise<OdsayResult> {
+  try {
+    return await call(origin, destination, key, searchType);
+  } catch {
+    try {
+      return await call(origin, destination, key, searchType);
+    } catch (err) {
+      console.warn(
+        `[transit] ODsay ${searchType === 0 ? "도시 안" : "도시 간"} 호출 두 번 다 실패:`,
+        (err as Error).message
+      );
+      return { paths: [] };
+    }
+  }
+}
+
 async function call(
   origin: Coordinate,
   destination: Coordinate,
@@ -311,9 +339,9 @@ export async function getTransitRoutes(
   const FAR = 40_000;
 
   const [inCity, intercity] = await Promise.all([
-    call(origin, destination, key, 0).catch(() => ({ paths: [] as OdsayPath[] })),
+    callWithRetry(origin, destination, key, 0),
     straight > FAR
-      ? call(origin, destination, key, 1).catch(() => ({ paths: [] as OdsayPath[] }))
+      ? callWithRetry(origin, destination, key, 1)
       : Promise.resolve({ paths: [] as OdsayPath[] }),
   ]);
 
