@@ -16,7 +16,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 
-import { deletePromise } from "@/lib/api-client";
+import { deletePromise, setPromiseFavorite } from "@/lib/api-client";
 import { useFirebaseAuth } from "@/components/firebase-auth-provider";
 import PromiseTicket from "@/components/promise-ticket";
 import AppleSummary from "@/components/apple-summary";
@@ -30,7 +30,7 @@ import {
   getPromiseDate,
   sortByWhen,
 } from "@/lib/promise-time";
-import { getParticipantNames } from "@/lib/promise-permissions";
+import { getParticipantNames, isPromiseFavoritedBy } from "@/lib/promise-permissions";
 import EmptyPromises from "@/components/empty-promises";
 
 import { Button } from "../components/ui/button";
@@ -127,20 +127,49 @@ export default function HomePage() {
   }, [firebaseReady, currentUserId, status]);
 
   // 다가오는 약속은 임박한 순, 지난 약속은 최근 순으로 나눠 보여준다.
+  // 그 안에서 즐겨찾기한 것은 날짜와 상관없이 위로 올린다 — 즐겨찾기끼리는
+  // 그대로 날짜순을 유지한다. sortByWhen이 이미 날짜순으로 만들어 둔 배열을
+  // 즐겨찾기/일반으로 안정 분할(stable partition)하면 그 순서가 각 묶음
+  // 안에서 그대로 보존된다.
   const { upcoming, past } = useMemo(() => {
     const now = new Date();
     const sorted = sortByWhen(promises, now);
+    const byFavoriteFirst = (list: PromiseDoc[]) => [
+      ...list.filter((p) => isPromiseFavoritedBy(p, currentUserId)),
+      ...list.filter((p) => !isPromiseFavoritedBy(p, currentUserId)),
+    ];
     return {
-      upcoming: sorted.filter((p) => {
-        const d = getPromiseDate(p);
-        return !d || d.getTime() >= now.getTime();
-      }),
-      past: sorted.filter((p) => {
-        const d = getPromiseDate(p);
-        return !!d && d.getTime() < now.getTime();
-      }),
+      upcoming: byFavoriteFirst(
+        sorted.filter((p) => {
+          const d = getPromiseDate(p);
+          return !d || d.getTime() >= now.getTime();
+        })
+      ),
+      past: byFavoriteFirst(
+        sorted.filter((p) => {
+          const d = getPromiseDate(p);
+          return !!d && d.getTime() < now.getTime();
+        })
+      ),
     };
-  }, [promises]);
+  }, [promises, currentUserId]);
+
+  const [favoritingId, setFavoritingId] = useState<string | null>(null);
+
+  const toggleFavorite = async (p: PromiseDoc) => {
+    if (favoritingId) return;
+    setFavoritingId(p.id);
+    try {
+      await setPromiseFavorite(p.id, !isPromiseFavoritedBy(p, currentUserId));
+      // 서버가 바꾼 값은 위 onSnapshot 구독이 그대로 받아온다.
+      // 여기서 로컬 상태를 따로 만들지 않는다.
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "즐겨찾기를 바꾸지 못했습니다.");
+    } finally {
+      setFavoritingId(null);
+    }
+  };
 
   const displayCreator = (p: PromiseDoc) => {
     const name = p.creatorName ?? p.creator;
@@ -288,7 +317,13 @@ export default function HomePage() {
               </p>
             )}
             {upcoming.map((p) => (
-              <PromiseTicket key={p.id} promise={p} onOpen={openDetail} />
+              <PromiseTicket
+                key={p.id}
+                promise={p}
+                onOpen={openDetail}
+                favorited={isPromiseFavoritedBy(p, currentUserId)}
+                onToggleFavorite={() => toggleFavorite(p)}
+              />
             ))}
 
             {past.length > 0 && (
@@ -297,7 +332,13 @@ export default function HomePage() {
               </p>
             )}
             {past.map((p) => (
-              <PromiseTicket key={p.id} promise={p} onOpen={openDetail} />
+              <PromiseTicket
+                key={p.id}
+                promise={p}
+                onOpen={openDetail}
+                favorited={isPromiseFavoritedBy(p, currentUserId)}
+                onToggleFavorite={() => toggleFavorite(p)}
+              />
             ))}
           </div>
         )}

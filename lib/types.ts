@@ -26,6 +26,10 @@ export interface PromiseData {
   participantIds?: string[];
   participantNames?: string[];
 
+  /** 이 플랜을 즐겨찾기한 사람들의 uid. participantIds와 같은 방식(배열)이라
+   *  대시보드가 이미 구독 중인 목록에 그대로 실려 온다. */
+  favoritedBy?: string[];
+
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

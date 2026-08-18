@@ -104,3 +104,12 @@ export function updateMyMember(
     body: JSON.stringify(patch),
   });
 }
+
+// ---------------------------------------------------------------- 즐겨찾기
+
+export function setPromiseFavorite(promiseId: string, favorite: boolean) {
+  return request<{ ok: true }>(`/api/promises/${promiseId}/favorite`, {
+    method: "PATCH",
+    body: JSON.stringify({ favorite }),
+  });
+}

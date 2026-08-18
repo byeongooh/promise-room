@@ -29,6 +29,11 @@ export function isPromiseParticipant(
   return !!userName && !!promise.participants?.includes(userName);
 }
 
+export function isPromiseFavoritedBy(promise: PromiseData, userId?: string): boolean {
+  if (!promise.favoritedBy?.length) return false;
+  return !!userId && promise.favoritedBy.some((id) => normalizeKakaoId(id) === normalizeKakaoId(userId));
+}
+
 // participants(v1)와 participantNames(v2)를 합쳐서 표시한다.
 // (arrayRemove는 존재하지 않는 필드를 빈 배열로 만들어버리므로,
 //  둘 중 하나만 보고 판단하면 다른 쪽에만 남아있는 참가자가 사라져 보일 수 있다)

@@ -417,3 +417,28 @@ export async function setMemberStatus(
     { merge: true }
   );
 }
+
+// ---------------------------------------------------------------- 즐겨찾기
+
+/**
+ * 즐겨찾기. participantIds와 같은 자리(약속 문서 자체)에 둔다.
+ *
+ * members/ 하위 컬렉션에 둘 수도 있었지만, 그러면 대시보드가 정렬하려고
+ * 내 모든 플랜의 member 문서를 따로 읽어야 한다(플랜 수만큼 구독이 늘어남).
+ * 문서 자체 필드로 두면 대시보드가 이미 구독하고 있는 promises 목록에
+ * 자동으로 같이 실려 온다 — 참여자 목록을 배열로 두는 것과 같은 이유다.
+ */
+export async function setFavorite(
+  caller: Caller,
+  promiseId: string,
+  favorite: boolean
+): Promise<void> {
+  await requireParticipant(promiseId, caller);
+
+  await promiseRef(promiseId).update({
+    favoritedBy: favorite
+      ? FieldValue.arrayUnion(caller.uid)
+      : FieldValue.arrayRemove(caller.uid),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, MapPin } from "lucide-react";
+import { CalendarDays, MapPin, Star } from "lucide-react";
 
 import type { PromiseData } from "@/lib/types";
 import { getParticipantNames } from "@/lib/promise-permissions";
@@ -46,11 +46,17 @@ export default function PromiseTicket({
   promise,
   onOpen,
   example = false,
+  favorited = false,
+  onToggleFavorite,
 }: {
   promise: PromiseData & { id: string };
   onOpen: (id: string) => void;
   /** 예시 티켓. 진짜 약속이 아니므로 누를 수 없고, 예시라고 표시한다. */
   example?: boolean;
+  favorited?: boolean;
+  /** 넘기면 별 버튼이 뜬다. 안 넘기면(관리자·예시 화면) 아예 안 그린다 —
+   *  거기서는 즐겨찾기를 켜고 끌 이유가 없다. */
+  onToggleFavorite?: () => void;
 }) {
   const when = getPromiseDate(promise);
   const countdown = getCountdown(when);
@@ -83,20 +89,48 @@ export default function PromiseTicket({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(promise.id)}
-      className={`group ${shell} transition hover:shadow-md focus-visible:outline-2
-        focus-visible:outline-offset-2 focus-visible:outline-[var(--tk-ink)]`}
-    >
-      <TicketFace
-        promise={promise}
-        when={when}
-        names={names}
-        countdown={countdown}
-        stub={stub}
-      />
-    </button>
+    // 별 버튼은 티켓을 여는 큰 버튼 "밖"에 얹는다. <button> 안에 또 <button>을
+    // 두면 안 되기 때문에(중첩 인터랙티브 요소는 잘못된 마크업이고, 클릭이
+    // 부모로도 같이 새서 별을 눌러도 상세 화면이 같이 열린다), 같은 자리를
+    // 절대 위치로 겹쳐 놓는 형제 버튼으로 뺐다.
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => onOpen(promise.id)}
+        className={`group ${shell} transition hover:shadow-md focus-visible:outline-2
+          focus-visible:outline-offset-2 focus-visible:outline-[var(--tk-ink)]`}
+      >
+        <TicketFace
+          promise={promise}
+          when={when}
+          names={names}
+          countdown={countdown}
+          stub={stub}
+        />
+      </button>
+
+      {onToggleFavorite && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          aria-pressed={favorited}
+          aria-label={favorited ? "즐겨찾기 해제" : "즐겨찾기"}
+          className="absolute right-[5.5rem] top-2 grid size-8 place-items-center
+            rounded-full transition hover:bg-[var(--tk-ground)]"
+        >
+          <Star
+            className={`size-[18px] transition ${
+              favorited
+                ? "fill-[var(--ap-red)] text-[var(--ap-red)]"
+                : "fill-none text-[var(--tk-assistive)]"
+            }`}
+          />
+        </button>
+      )}
+    </div>
   );
 }
 
