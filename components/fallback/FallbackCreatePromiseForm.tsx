@@ -14,7 +14,6 @@ interface Props {
     title: string;
     date: string;
     time: string;
-    penalty: string;
     password: string;
   }) => void;
   isSubmitting?: boolean;
@@ -38,7 +37,6 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [penalty, setPenalty] = useState("");
   const [password, setPassword] = useState("");
   const [focused, setFocused] = useState<"date" | "time" | null>(null);
 
@@ -46,7 +44,7 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onCreate({ title, date, time, penalty, password });
+        onCreate({ title, date, time, password });
       }}
       className="space-y-4"
     >
@@ -99,18 +97,6 @@ export default function FallbackCreatePromiseForm({ onCreate, isSubmitting = fal
             style={hideEmptyText(time, focused === "time")}
           />
         </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="penalty" className="tk-field-label text-[var(--tk-sub)]">
-          지각 벌칙 <span className="font-normal text-[var(--tk-faint)]">선택</span>
-        </Label>
-        <Input
-          id="penalty"
-          value={penalty}
-          onChange={(e) => setPenalty(e.target.value)}
-          className={field}
-        />
       </div>
 
       <div className="space-y-1.5">

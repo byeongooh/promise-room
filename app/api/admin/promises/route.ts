@@ -26,7 +26,6 @@ export async function GET() {
         date: typeof x.date === "string" ? x.date : "",
         time: (x.time as string) ?? "",
         location: (x.location as string) ?? "",
-        penalty: (x.penalty as string) ?? "",
         creatorId: (x.creatorId as string) ?? null,
         creatorName: (x.creatorName as string) ?? (x.creator as string) ?? "알 수 없음",
         participantIds: (x.participantIds as string[]) ?? [],

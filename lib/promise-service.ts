@@ -47,7 +47,6 @@ export interface CreatePromiseInput {
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
-  penalty: string;
   password: string;
 }
 
@@ -93,7 +92,6 @@ export async function createPromise(caller: Caller, input: CreatePromiseInput): 
     locationLat: input.locationLat ?? null,
     locationLng: input.locationLng ?? null,
     locationPlaceId: input.locationPlaceId ?? null,
-    penalty: input.penalty,
     status: "active",
 
     creatorId: caller.uid,

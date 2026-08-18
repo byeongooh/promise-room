@@ -35,7 +35,6 @@ const handleCreatePromise = async (promiseData: {
   title: string;
   date: string;
   time: string;
-  penalty: string;
   password: string;
 }) => {
   if (!pickedLocation) {
@@ -57,7 +56,6 @@ const handleCreatePromise = async (promiseData: {
       locationLng: pickedLocation.lng,
       locationPlaceId: pickedLocation.placeId ?? null,
 
-      penalty: promiseData.penalty,
       password: promiseData.password,
     });
 

@@ -16,8 +16,6 @@ const createSchema = z.object({
   locationLat: z.number().optional(),
   locationLng: z.number().optional(),
   locationPlaceId: z.string().nullable().optional(),
-  // 벌칙은 원래 선택 입력이라 비워둘 수 있다.
-  penalty: z.string().trim().default(""),
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH, `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`),

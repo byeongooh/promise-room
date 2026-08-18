@@ -26,7 +26,6 @@ export function getSamplePromise(now: Date = new Date()): PromiseData & { id: st
     date: `${yyyy}-${mm}-${dd}`,
     time: "19:00",
     location: "성수역 3번 출구",
-    penalty: "늦은 사람이 커피 사기",
     creatorName: "예시",
     participantNames: ["나", "친구", "친구2"],
     participantIds: [],

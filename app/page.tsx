@@ -38,7 +38,6 @@ import {
   CalendarDays,
   MapPin,
   Share2,
-  TriangleAlert,
   Trash2,
   Loader2,
   ExternalLink,
@@ -361,13 +360,6 @@ export default function HomePage() {
                   <MapPin className="size-4 shrink-0 opacity-70" />
                   <span>{displayLocation(detail.location)}</span>
                 </div>
-                {detail.penalty?.trim() ? (
-                  <div className="flex items-center gap-2.5 text-[13px] text-[var(--tk-warn)]">
-                    <TriangleAlert className="size-4 shrink-0" />
-                    <span>지각 시 · {detail.penalty}</span>
-                  </div>
-                ) : null}
-
                 {getParticipantNames(detail).length > 0 && (
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex">

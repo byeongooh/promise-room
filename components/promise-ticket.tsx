@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, MapPin, TriangleAlert } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 
 import type { PromiseData } from "@/lib/types";
 import { getParticipantNames } from "@/lib/promise-permissions";
@@ -132,13 +132,6 @@ function TicketFace({
             <span className="truncate">{displayLocation(promise.location)}</span>
           </p>
         </div>
-
-        {promise.penalty?.trim() ? (
-          <p className="tk-note mt-2.5 flex items-center gap-1.5 border-t border-dashed border-[var(--tk-line)]/70 pt-2.5 text-[var(--tk-warn)]">
-            <TriangleAlert className="size-3.5 shrink-0" />
-            <span className="truncate">지각 시 · {promise.penalty}</span>
-          </p>
-        ) : null}
 
         <div className="mt-3 flex items-center">
           <div className="flex">

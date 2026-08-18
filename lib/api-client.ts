@@ -47,7 +47,6 @@ export interface CreatePromiseInput {
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
-  penalty: string;
   password: string;
 }
 

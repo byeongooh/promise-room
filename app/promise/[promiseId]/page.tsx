@@ -50,7 +50,6 @@ import {
   Loader2,
   Lock,
   MapPin,
-  ShieldAlert,
   Trash2,
 } from "lucide-react";
 
@@ -481,12 +480,6 @@ export default function PromisePage() {
               </p>
             </div>
 
-            {promiseData.penalty?.trim() ? (
-              <p className="tk-note mt-2.5 flex items-center gap-2 text-[var(--tk-warn)]">
-                <ShieldAlert className="size-4 shrink-0" />
-                지각 시 · {promiseData.penalty}
-              </p>
-            ) : null}
           </div>
 
           <div

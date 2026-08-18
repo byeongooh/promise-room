@@ -9,7 +9,9 @@ export interface PromiseData {
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
-  penalty: string;
+  /** 지각 벌칙(자유 텍스트) — 독사과로 대체하면서 새로 만들지 않는다.
+   *  옛 플랜에 남아 있는 값을 읽지 못해 오류가 나지 않도록 타입만 남긴다. */
+  penalty?: string;
   status?: string;
   // 비밀번호는 이 문서에 저장하지 않는다. 해시가 promises/{id}/private/auth 에
   // 따로 있고 서버만 접근한다 (규칙은 필드 단위로 가릴 수 없기 때문).

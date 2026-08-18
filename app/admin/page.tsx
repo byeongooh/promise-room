@@ -20,7 +20,6 @@ type AdminPromise = {
   date: string;
   time: string;
   location: string;
-  penalty: string;
   creatorId: string | null;
   creatorName: string;
   participantIds: string[];
@@ -313,9 +312,6 @@ export default function AdminPage() {
                         {p.participantIds.length}명
                         {p.participantNames.length > 0 && ` (${p.participantNames.join(", ")})`}
                       </p>
-                      {p.penalty && (
-                        <p className="tk-caption mt-1 text-[var(--tk-warn)]">벌칙 · {p.penalty}</p>
-                      )}
                     </div>
                     <span
                       className={`shrink-0 rounded-lg px-2.5 py-1.5 text-center leading-none ${tone}`}
