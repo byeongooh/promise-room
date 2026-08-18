@@ -6,7 +6,7 @@
 // 새로 만들어야 하는데, 최종 목표가 앱이라 그 작업은 앱으로 옮길 때 한 번에 한다.
 // 그래서 지금은 폰을 바꾸면 다시 넣어야 한다 — 그때까지의 임시 저장소다.
 
-const KEY = "promise-room:my-places:v1";
+const KEY = "applan:my-places:v1";
 
 export interface MyPlace {
   id: string;
