@@ -102,3 +102,13 @@ export async function getCarRoute(
     path,
   };
 }
+
+/**
+ * ODsay가 실패를 알리는 방식. HTTP는 200으로 오고 본문에 이것이 들어 있다.
+ *
+ * 메시지 필드는 `message`다. 예전에 `msg`로 읽고 있어서 "[ApiKeyAuthFailed]
+ * ApiKey authentication failed." 같은 정작 중요한 문장이 통째로 사라지고
+ * 코드 "500"만 로그에 남았다. 그걸 HTTP 500으로 착각해 리전·User-Agent 등
+ * 엉뚱한 곳을 두 번이나 고쳤다. 그래서 타입으로 못박아 둔다.
+ */
+export type OdsayError = { code?: string; message?: string; msg?: string };

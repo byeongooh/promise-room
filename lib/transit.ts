@@ -1,4 +1,4 @@
-import { DirectionsUnavailable, isPlausibleKoreanCoord, type Coordinate } from "@/lib/directions";
+import { DirectionsUnavailable, isPlausibleKoreanCoord, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 길찾기 (ODsay).
 //
@@ -229,16 +229,23 @@ async function call(
   }
 
   const data = (await res.json()) as {
-    error?: { code?: string; msg?: string } | { code?: string; msg?: string }[];
+    error?: OdsayError | OdsayError[];
     result?: { path?: OdsayPath[] };
   };
 
   if (data.error) {
-    // 에러 객체를 통째로 남긴다. code/msg만 뽑아 쓰다가 msg가 비어 있어
-    // "ODsay 500"이라는 코드 하나만 남았고, 그걸 HTTP 500으로 착각해
-    // 리전·User-Agent를 애먼 데를 고쳤다. 필드 이름이 msg가 아닐 수도 있다.
+    const e = Array.isArray(data.error) ? data.error[0] : data.error;
+    // ODsay는 msg가 아니라 message로 준다. msg를 읽고 있어서 정작 중요한
+    // "[ApiKeyAuthFailed]"가 통째로 사라지고 코드 "500"만 남았고, 그걸
+    // HTTP 500으로 착각해 리전·User-Agent 같은 애먼 데를 고쳤다.
+    //
+    // 키 앞 4글자와 길이도 같이 남긴다. 로컬은 되고 배포판만 인증에
+    // 실패하므로, Vercel에 등록된 키가 .env.local의 것과 다른지부터
+    // 갈라야 한다. 앞 4글자로는 키를 복원할 수 없다
+    // (scripts/check-odsay.mjs가 쓰는 것과 같은 방식).
     throw new DirectionsUnavailable(
-      `ODsay 오류 referer=${referer} error=${JSON.stringify(data.error).slice(0, 300)}`
+      `ODsay ${e?.code ?? ""} ${e?.message ?? e?.msg ?? ""} ` +
+        `referer=${referer} key=${key.slice(0, 4)}…(${key.length}자)`
     );
   }
 

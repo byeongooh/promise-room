@@ -1,4 +1,4 @@
-import { DirectionsUnavailable, type Coordinate } from "@/lib/directions";
+import { DirectionsUnavailable, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 경로를 지도에 그릴 좌표로 바꾼다 (ODsay loadLane).
 //
@@ -91,12 +91,13 @@ export async function getRouteSegments(
   if (!res.ok) throw new DirectionsUnavailable(`ODsay 응답 ${res.status}`);
 
   const data = (await res.json()) as {
-    error?: { code?: string; msg?: string } | { code?: string; msg?: string }[];
+    error?: OdsayError | OdsayError[];
     result?: { lane?: OdsayLane[] };
   };
   if (data.error) {
     const e = Array.isArray(data.error) ? data.error[0] : data.error;
-    throw new DirectionsUnavailable(`ODsay ${e?.code ?? ""} ${e?.msg ?? ""}`.trim());
+    // message가 진짜 이유를 담는다. msg만 읽으면 코드만 남아 원인을 못 본다.
+    throw new DirectionsUnavailable(`ODsay ${e?.code ?? ""} ${e?.message ?? e?.msg ?? ""}`.trim());
   }
 
   const lanes = (data.result?.lane ?? []).map((lane) => {
