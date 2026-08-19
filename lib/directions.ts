@@ -44,7 +44,7 @@ export async function getCarRoute(
 ): Promise<RouteSummary> {
   // 카카오 로그인의 client_id가 곧 그 앱의 REST API 키라서 이미 갖고 있는 값을 쓴다.
   // 나중에 길찾기용 앱을 따로 팔 수도 있으니 전용 변수를 먼저 본다.
-  const key = process.env.KAKAO_REST_API_KEY || process.env.KAKAO_CLIENT_ID;
+  const key = readApiKey("KAKAO_REST_API_KEY") ?? readApiKey("KAKAO_CLIENT_ID");
   if (!key) {
     throw new DirectionsUnavailable("카카오 REST 키가 설정되지 않았습니다.");
   }
@@ -112,3 +112,21 @@ export async function getCarRoute(
  * 엉뚱한 곳을 두 번이나 고쳤다. 그래서 타입으로 못박아 둔다.
  */
 export type OdsayError = { code?: string; message?: string; msg?: string };
+
+/**
+ * 환경변수에서 API 키를 읽되 앞뒤 공백을 떼어낸다.
+ *
+ * 실제로 데인 곳이다. Vercel에 ODsay 키를 붙여넣을 때 맨 앞에 탭 문자가
+ * 하나 딸려 들어가 22자짜리 키가 23자가 되었고, ODsay는 이걸
+ * "[ApiKeyAuthFailed] ApiKey authentication failed."로 거절했다.
+ * 로컬 .env.local의 키는 멀쩡해서 로컬만 되고 배포판만 안 되는,
+ * 원인 짐작이 어려운 증상으로 나타났다.
+ *
+ * 콘솔에서 값을 다시 저장하는 게 근본 해결이지만, 눈에 안 보이는 공백은
+ * 언제든 다시 섞인다. 코드가 견디는 편이 낫다.
+ */
+export function readApiKey(name: string): string | undefined {
+  const raw = process.env[name];
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : undefined;
+}

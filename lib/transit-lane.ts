@@ -1,4 +1,4 @@
-import { DirectionsUnavailable, type Coordinate, type OdsayError } from "@/lib/directions";
+import { DirectionsUnavailable, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 경로를 지도에 그릴 좌표로 바꾼다 (ODsay loadLane).
 //
@@ -69,7 +69,7 @@ export async function getRouteSegments(
   origin: Coordinate,
   destination: Coordinate
 ): Promise<RouteSegment[]> {
-  const key = process.env.ODSAY_API_KEY;
+  const key = readApiKey("ODSAY_API_KEY");
   if (!key) throw new DirectionsUnavailable("ODSAY_API_KEY가 없습니다.");
 
   const params = new URLSearchParams({

@@ -1,4 +1,4 @@
-import { DirectionsUnavailable, isPlausibleKoreanCoord, type Coordinate, type OdsayError } from "@/lib/directions";
+import { DirectionsUnavailable, isPlausibleKoreanCoord, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 길찾기 (ODsay).
 //
@@ -195,17 +195,15 @@ async function call(
     apiKey: key,
   });
 
-  // ODsay 애플리케이션을 URI 방식으로 등록했다면, 어느 사이트에서 부르는지를
+  // ODsay 애플리케이션을 URI 방식으로 등록했으므로, 어느 사이트에서 부르는지를
   // Referer로 확인한다. 서버에서 부르는 요청에는 Referer가 없으므로 직접 붙인다.
   // (Server 방식은 공인 IP 고정을 요구하는데, Vercel은 요청마다 IP가 달라
   //  이 프로젝트에서는 쓸 수 없다.)
   //
-  // User-Agent도 같이 붙인다. Node의 기본 fetch는 이 값을 "node"로 보내는데,
-  // 배포된 링크(Vercel)에서만 이 호출이 "ODsay 500"으로 반복해서 실패하고
-  // 로컬에서 같은 좌표로 부르면 바로 되는 걸 실제로 봤다. 리전을 서울로
-  // 옮겨도 재현돼서 지연 문제는 아니었다 — "node"라는 값 자체가 서버·봇
-  // 요청이라는 걸 그대로 드러내서, ODsay 앞단의 방어 로직이 이걸 다르게
-  // 다루고 있을 가능성이 크다. 브라우저 값으로 바꿔 우선 확인해본다.
+  // User-Agent는 브라우저 값으로 보낸다. Node 기본값은 "node"인데, URI 방식은
+  // 원래 브라우저에서 부르는 것을 전제로 한 등록이라 그쪽에 맞춘다.
+  // (한때 이게 인증 실패의 원인인 줄 알고 넣었지만 아니었다. 진짜 원인은
+  //  키에 섞여 들어간 공백이었다 — lib/directions.ts의 readApiKey 참고.)
   const referer = registeredOrigin();
   const res = await fetch(`${ENDPOINT}?${params}`, {
     cache: "no-store",
@@ -347,7 +345,7 @@ export async function getTransitRoutes(
   origin: Coordinate,
   destination: Coordinate
 ): Promise<TransitOption[]> {
-  const key = process.env.ODSAY_API_KEY;
+  const key = readApiKey("ODSAY_API_KEY");
   if (!key) throw new DirectionsUnavailable("ODSAY_API_KEY가 없습니다.");
 
   if (!isPlausibleKoreanCoord(origin) || !isPlausibleKoreanCoord(destination)) {
