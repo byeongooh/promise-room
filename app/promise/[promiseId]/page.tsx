@@ -32,6 +32,8 @@ import TravelTime, { type DrawnRoute } from "../../../components/travel-time";
 import PromiseMap from "../../../components/promise-map";
 import MemberBoard from "../../../components/member-board";
 import DepartureBlock from "../../../components/departure-block";
+import PlaceCompare from "../../../components/place-compare";
+import PlaceSuggestions from "../../../components/place-suggestions";
 import {
   displayLocation,
   formatWhen,
@@ -494,6 +496,7 @@ export default function PromisePage() {
         <DepartureBlock
           leaveAt={myLeaveAt}
           route={myRoute}
+          dateUndecided={getPromiseDate(promiseData) === null}
           onChange={() =>
             document.getElementById("how-to-go")?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
@@ -544,6 +547,27 @@ export default function PromisePage() {
             </p>
           )}
         </section>
+
+        {/* 올라온 장소 제안 — 있을 때만 보인다 */}
+        <PlaceSuggestions
+          promiseId={promiseId}
+          suggestions={promiseData.placeSuggestions ?? []}
+          isOwner={isOwner}
+          myUid={currentUserId}
+          onChanged={() => fetchPromiseData(promiseId)}
+        />
+
+        {/* 다 같이 편한 곳 찾기 — 계산은 누구나, 변경은 만든 사람만 */}
+        <PlaceCompare
+          promiseId={promiseId}
+          currentPlace={{
+            name: displayLocation(promiseData.location),
+            lat: promiseData.locationLat ?? null,
+            lng: promiseData.locationLng ?? null,
+          }}
+          isOwner={isOwner}
+          onChanged={() => fetchPromiseData(promiseId)}
+        />
 
         {/* 얼마나 걸리는지 — 저장된 경로를 다 읽은 뒤에 그려야 되살릴 수 있다 */}
         {memberLoaded && (

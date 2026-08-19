@@ -305,6 +305,21 @@ export default function TravelTime({
     setPlaces(listMyPlaces());
   }, []);
 
+  // 출발지가 정해지면 경로를 고르기 전에도 서버에 남긴다.
+  //
+  // 장소 후보를 계산할 때 참여자 전원의 출발지가 필요한데, 경로까지 골라야만
+  // 저장된다면 이제 막 들어온 사람은 계산에서 빠진다. 표본이 한둘뿐이면
+  // "다 같이 편한 곳"이라는 말 자체가 성립하지 않는다.
+  useEffect(() => {
+    if (!promiseId || !origin) return;
+    void updateMyMember(promiseId, {
+      origin: { label: origin.label, lat: origin.lat, lng: origin.lng },
+    }).catch((err) => {
+      // 저장에 실패해도 길찾기 자체는 막지 않는다. 다음에 경로를 고르면 같이 저장된다.
+      console.warn("[travel-time] 출발지를 저장하지 못함:", err);
+    });
+  }, [promiseId, origin]);
+
   // ---------------- 출발지 정하기 ----------------
   const useCurrentPosition = useCallback(() => {
     setOriginError(null);

@@ -29,13 +29,30 @@ export default function DepartureBlock({
   leaveAt,
   route,
   onChange,
+  dateUndecided = false,
 }: {
   /** ISO 문자열. 서버가 경로 저장 시 계산해 둔다. */
   leaveAt: string | null;
   route: MemberRoute | null;
   /** "바꾸기" — 아래 경로 고르는 칸으로 보낸다. */
   onChange?: () => void;
+  /** 날짜가 아직 안 정해진 플랜. 그러면 출발 시각을 계산할 방법이 없다. */
+  dateUndecided?: boolean;
 }) {
+  // 날짜가 없으면 경로를 아무리 잘 골라도 "몇 시에 나가라"를 만들 수 없다.
+  // 출발지를 정하라고 안내하면 엉뚱한 곳을 고치게 만든다.
+  if (dateUndecided) {
+    return (
+      <section className="mb-3 rounded-xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-[var(--tk-line)]">
+        <p className="tk-label text-[var(--tk-faint)]">나가야 하는 시각</p>
+        <p className="tk-body mt-1.5 text-[var(--tk-sub)]">
+          날짜가 정해지면 <b className="text-[var(--tk-ink)]">몇 시에 나가야 하는지</b> 알려드려요.
+          {route && ` 지금 고른 길로는 ${formatSpan(route.durationSec)} 걸려요.`}
+        </p>
+      </section>
+    );
+  }
+
   // 경로를 아직 안 골랐으면 값이 없다. 빈 카드를 그리는 대신 무엇을 하면
   // 되는지 한 줄로 말한다.
   if (!leaveAt || !route) {
