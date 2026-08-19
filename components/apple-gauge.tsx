@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  APPLE_BITE,
+  APPLE_BODY,
+  APPLE_SHINE,
+  APPLE_STEM,
+  SPARKLES,
+  WORM_BODY,
+  WORM_HEAD,
+} from "@/lib/apple-shape";
 import { gaugeRatio, poisonRatio, stageOf } from "@/lib/brix";
 
 // 사과 한 알 + 당도 링.
@@ -17,22 +26,8 @@ import { gaugeRatio, poisonRatio, stageOf } from "@/lib/brix";
 //   낮은 쪽(새싹 단계) — 벌레가 파먹고 기어가는 중. 아직 안 익었다는 신호.
 //   높은 쪽(고목 단계) — 황금 사과. 반짝임을 더한다.
 
-const APPLE_PATH =
-  "M50 38C38 24 14 30 14 55c0 24 22 45 36 45s36-21 36-45C86 30 62 24 50 38Z";
-const STEM_PATH = "M50 38c1-11 7-17 17-19";
-
-/** 사과 오른쪽 위를 파먹은 자리. evenodd로 APPLE_PATH와 합치면 진짜 구멍이
- *  뚫린다(뒤 배경이 카드든 바닥이든 그대로 비친다) — 배경색을 몰라도 된다. */
-const BITE_PATH = "M87 40 A11 11 0 1 1 65 40 A11 11 0 1 1 87 40 Z";
-/** 파먹은 자리에서 나와 아래로 기어가는 벌레. */
-const WORM_BODY_PATH = "M78 43 C 84 50 70 58 80 66 C 88 72 74 78 82 84";
-const WORM_HEAD = { cx: 77, cy: 42, r: 4 };
-
-/** 황금 사과의 반짝임 두 점. */
-const SPARKLES: { cx: number; cy: number; r: number }[] = [
-  { cx: 32, cy: 34, r: 3.4 },
-  { cx: 45, cy: 48, r: 2.1 },
-];
+// 사과 모양과 장식 좌표는 전부 lib/apple-shape.ts에 있다.
+// 몸통을 바꾸면 파먹은 자리·벌레·반짝임도 같이 다시 맞춰야 해서 한곳에 뒀다.
 
 /** 게이지가 열려 있는 각도. 시작 135°에서 시계방향으로 270°. */
 const START_DEG = 135;
@@ -124,13 +119,28 @@ export default function AppleGauge({
         <path
           // 벌레 먹은 사과만 파먹은 자리를 구멍으로 뚫는다(evenodd).
           // 나머지는 원래 실루엣 그대로.
-          d={variant === "wormy" ? `${APPLE_PATH} ${BITE_PATH}` : APPLE_PATH}
+          d={variant === "wormy" ? `${APPLE_BODY} ${APPLE_BITE}` : APPLE_BODY}
           fillRule="evenodd"
           fill={appleFill}
           opacity={variant === "poison" ? 0.42 : 1}
         />
+
+        {/* 광. 독사과에는 얹지 않는다 — 멍든 사과가 반질하게 빛나면
+            "상했다"는 신호와 정반대로 읽힌다. */}
+        {variant !== "poison" && (
+          <ellipse
+            cx={APPLE_SHINE.cx}
+            cy={APPLE_SHINE.cy}
+            rx={APPLE_SHINE.rx}
+            ry={APPLE_SHINE.ry}
+            transform={`rotate(${APPLE_SHINE.rotate} ${APPLE_SHINE.cx} ${APPLE_SHINE.cy})`}
+            fill="#fff"
+            opacity={0.3}
+          />
+        )}
+
         <path
-          d={STEM_PATH}
+          d={APPLE_STEM}
           fill="none"
           stroke={stemColor}
           strokeWidth={6}
@@ -141,7 +151,7 @@ export default function AppleGauge({
         {variant === "wormy" && (
           <>
             <path
-              d={WORM_BODY_PATH}
+              d={WORM_BODY}
               fill="none"
               stroke="var(--ap-leaf)"
               strokeWidth={5.5}

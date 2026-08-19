@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Plus } from "lucide-react";
 
+import { APPLE_BODY, APPLE_STEM, APPLE_VIEWBOX } from "@/lib/apple-shape";
+
 // 하단 탭바 — 홈 / 새 플랜 / 내 사과.
 //
 // 예전에는 헤더에 "새 약속"과 "로그아웃" 버튼이 나란히 있었다. 축이 사람으로
@@ -11,18 +13,25 @@ import { Home, Plus } from "lucide-react";
 // 새 플랜은 가운데 큰 버튼으로 뺐다. 한 손으로 쓰는 화면이라 자주 누르는
 // 것일수록 엄지가 닿는 아래쪽에 있어야 한다.
 
-/** 사과 실루엣. AppleGauge와 같은 path를 선으로만 쓴다. */
+/**
+ * 사과 실루엣. 몸통은 lib/apple-shape.ts에서 가져와 워드마크·AppleGauge와
+ * 같은 모양을 쓴다.
+ *
+ * 광(APPLE_SHINE)만 뺐다. 여기는 currentColor 단색 20px이라, 흰 광을 얹으면
+ * 채운 상태에서는 구멍처럼 보이고 선 상태에서는 아예 안 보인다.
+ */
 function AppleIcon({ filled }: { filled: boolean }) {
   return (
-    <svg width="20" height="22" viewBox="0 0 100 112" aria-hidden="true">
+    <svg width="20" height="22" viewBox={APPLE_VIEWBOX} aria-hidden="true">
       <path
-        d="M50 38C38 24 14 30 14 55c0 24 22 45 36 45s36-21 36-45C86 30 62 24 50 38Z"
+        d={APPLE_BODY}
         fill={filled ? "currentColor" : "none"}
         stroke="currentColor"
         strokeWidth={filled ? 0 : 9}
+        strokeLinejoin="round"
       />
       <path
-        d="M50 38c1-11 7-17 17-19"
+        d={APPLE_STEM}
         fill="none"
         stroke="currentColor"
         strokeWidth={9}
