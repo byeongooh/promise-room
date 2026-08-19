@@ -119,7 +119,7 @@ const handleCreatePromise = async (promiseData: {
           새 플랜 만들기
         </h1>
         <p className="mt-1 mb-4 text-[13px] text-[var(--tk-sub)]">
-          어떻게 만날지 고르고 정보를 채우면 플랜 한 장이 만들어져요.
+          어디서 만날지 고르고 정보를 채우면 플랜 한 장이 만들어져요.
         </p>
 
         {/* 1단계 — 장소 */}
@@ -128,30 +128,22 @@ const handleCreatePromise = async (promiseData: {
             <span className="grid size-[18px] place-items-center rounded-full bg-[var(--tk-ink)] text-[10px] text-[var(--tk-paper)]">
               1
             </span>
-            어떻게 만날까요
+            {mode === "online" ? "어디로 들어갈까요" : "어디서 만날까요"}
+            {/* 온라인은 이 앱에서 곁가지다. 대부분의 플랜은 직접 만나는 것이라
+                두 선택지를 같은 크기로 두면 없는 무게를 만들어낸다. 그래서
+                기본은 직접 만나기로 두고, 온라인은 작은 전환 한 줄로 둔다. */}
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "online" ? "inPerson" : "online");
+                setError(null);
+              }}
+              className="ml-auto rounded-md px-1 text-[11px] font-bold text-[var(--tk-faint)]
+                underline-offset-2 transition hover:text-[var(--tk-sub)] hover:underline"
+            >
+              {mode === "online" ? "직접 만나기로" : "온라인으로 만나요"}
+            </button>
           </p>
-
-          {/* 직접 / 온라인. 이 선택이 화면 절반을 좌우한다 — 온라인 플랜에는
-              이동시간이라는 개념이 없어서 출발지·경로·장소 비교가 다 빠진다. */}
-          <div className="mb-3 flex gap-1.5">
-            {(["inPerson", "online"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setMode(m);
-                  setError(null);
-                }}
-                className={`h-11 flex-1 rounded-xl text-[13px] font-bold transition ${
-                  mode === m
-                    ? "bg-[var(--tk-ink)] text-[var(--tk-paper)]"
-                    : "bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
-                }`}
-              >
-                {m === "inPerson" ? "직접 만나기" : "온라인"}
-              </button>
-            ))}
-          </div>
 
           {mode === "online" ? (
             <>

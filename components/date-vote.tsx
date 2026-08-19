@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useState } from "react";
 import { CalendarDays, Check, Crown, Loader2, Plus, X } from "lucide-react";
 
@@ -23,6 +24,17 @@ import type { DateOption, DateVote } from "@/lib/types";
 // 표가 많아도 뒤로 민다. 모임은 참석률이 아니라 "그날 우리가 만나는가"다.
 
 const VOTES: DateVote[] = ["ok", "maybe", "no"];
+
+/**
+ * 날짜·시간 입력은 값이 없을 때 브라우저가 "연도-월-일", "-- --:--" 같은
+ * 회색 글씨를 채워 넣는다. 후보를 올리는 칸은 대부분 비어 있는 상태로
+ * 보이므로 그 글씨가 그대로 있으면 화면이 지저분하다. 비어 있는 동안은
+ * 글자를 감춰 빈 칸으로 두고, 누르면 다시 보이게 한다.
+ * (만들기 폼과 같은 처리다 — components/fallback/FallbackCreatePromiseForm.tsx)
+ */
+function hideEmptyText(value: string, focused: boolean): React.CSSProperties {
+  return value === "" && !focused ? { color: "transparent" } : {};
+}
 
 function VoteChip({
   vote,
@@ -75,6 +87,7 @@ export default function DateVoteBoard({
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [adding, setAdding] = useState(false);
+  const [focused, setFocused] = useState<"date" | "time" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,15 +174,23 @@ export default function DateVoteBoard({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          onFocus={() => setFocused("date")}
+          onBlur={() => setFocused(null)}
+          aria-label="날짜 후보"
           className="h-11 min-w-0 flex-1 rounded-xl bg-[var(--tk-ground)] px-3 text-[13px]
             text-[var(--tk-ink)] outline-none"
+          style={hideEmptyText(date, focused === "date")}
         />
         <input
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
+          onFocus={() => setFocused("time")}
+          onBlur={() => setFocused(null)}
+          aria-label="시간 (선택)"
           className="h-11 w-[104px] shrink-0 rounded-xl bg-[var(--tk-ground)] px-3 text-[13px]
             text-[var(--tk-ink)] outline-none"
+          style={hideEmptyText(time, focused === "time")}
         />
         <button
           type="button"
