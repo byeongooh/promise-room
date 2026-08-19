@@ -206,17 +206,26 @@ async function call(
   // 옮겨도 재현돼서 지연 문제는 아니었다 — "node"라는 값 자체가 서버·봇
   // 요청이라는 걸 그대로 드러내서, ODsay 앞단의 방어 로직이 이걸 다르게
   // 다루고 있을 가능성이 크다. 브라우저 값으로 바꿔 우선 확인해본다.
+  const referer = registeredOrigin();
   const res = await fetch(`${ENDPOINT}?${params}`, {
     cache: "no-store",
     headers: {
-      Referer: registeredOrigin(),
+      Referer: referer,
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     },
   });
   if (!res.ok) {
-    throw new DirectionsUnavailable(`ODsay 응답 ${res.status}`);
+    // 응답 본문과 우리가 실제로 보낸 Referer를 같이 남긴다.
+    // 배포판에서만 500이 반복되는데 상태 코드만 봐서는 원인을 좁힐 수 없었다.
+    // ODsay는 보통 200 + 본문의 error 객체로 실패를 알리므로, 500이 온다는 건
+    // ODsay 앞단(또는 우리가 잘못 보낸 값) 쪽 문제일 가능성이 크다.
+    // 키는 절대 찍지 않는다 — 본문에도 섞여 있을 수 있어 앞부분만 자른다.
+    const body = await res.text().catch(() => "(본문 읽기 실패)");
+    throw new DirectionsUnavailable(
+      `ODsay 응답 ${res.status} · referer=${referer} · body=${body.slice(0, 200)}`
+    );
   }
 
   const data = (await res.json()) as {
