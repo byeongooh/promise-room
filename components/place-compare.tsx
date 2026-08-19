@@ -194,8 +194,8 @@ export default function PlaceCompare({
 
           {result.summary.counted === 0 ? (
             <p className="tk-meta mt-3 rounded-xl bg-[var(--tk-ground)] px-3.5 py-3 text-[var(--tk-sub)]">
-              출발지를 정한 사람이 없어 비교할 수 없어요. 아래 &ldquo;어떻게 갈까&rdquo;에서
-              출발지를 먼저 정해주세요.
+              출발지를 정한 사람이 없어 비교할 수 없어요. 위 {" "}
+              <b className="text-[var(--tk-ink)]">어디서 출발하세요?</b>에서 먼저 정해주세요.
             </p>
           ) : (
             <>

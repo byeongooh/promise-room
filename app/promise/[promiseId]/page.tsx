@@ -36,6 +36,7 @@ import PlaceCompare from "../../../components/place-compare";
 import PlaceSuggestions from "../../../components/place-suggestions";
 import DateVoteBoard from "../../../components/date-vote";
 import OnlineMeetingCard from "../../../components/online-meeting-card";
+import OriginPicker from "../../../components/origin-picker";
 import { displayWhere, isOnline } from "../../../lib/meeting-mode";
 import {
   displayLocation,
@@ -585,6 +586,18 @@ export default function PromisePage() {
         {/* 아래는 전부 "오가는 시간"에 기대는 것들이라 온라인 플랜에는 안 나온다. */}
         {!online && (
           <>
+            {/* 장소가 아직 없으면 "어떻게 갈까" 칸이 안 나온다(잴 목적지가 없다).
+                그 칸 안에서만 출발지를 정할 수 있었기 때문에, 장소 미정일 때는
+                출발지를 넣을 방법이 통째로 사라진다 — 하필 후보를 견주려면
+                출발지가 가장 필요한 순간이다. 그래서 따로 낸다. */}
+            {!destinationCoord && (
+              <OriginPicker
+                promiseId={promiseId}
+                promiseData={promiseData}
+                myUid={currentUserId}
+              />
+            )}
+
             {/* 올라온 장소 제안 — 있을 때만 보인다 */}
             <PlaceSuggestions
               promiseId={promiseId}
