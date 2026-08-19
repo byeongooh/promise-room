@@ -41,9 +41,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export interface CreatePromiseInput {
   title: string;
+  /** 빈 문자열이면 "날짜 정하는 중". time과 같이 비워야 한다. */
   date: string;
   time: string;
+  /** 빈 문자열이면 "장소 정하는 중". 온라인 플랜은 애초에 안 쓴다. */
   location: string;
+  meetingMode?: "inPerson" | "online";
+  /** 온라인 플랜의 참여 링크. */
+  meetingUrl?: string | null;
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
@@ -146,7 +151,7 @@ export function checkPlace(promiseId: string, place: PlaceInput) {
 /** 약속 장소를 실제로 바꾼다. 만든 사람만. 참여자들의 출발 시각도 다시 계산된다. */
 export function changePlace(
   promiseId: string,
-  place: PlaceInput & { placeId?: string | null }
+  place: PlaceInput & { placeId?: string | null; meetingUrl?: string | null }
 ) {
   return request<{ recalculated: number }>(`/api/promises/${promiseId}/place`, {
     method: "PATCH",
@@ -166,6 +171,42 @@ export function suggestPlace(promiseId: string, place: PlaceInput, summary: Plac
 export function removePlaceSuggestion(promiseId: string, suggestionId: string) {
   return request<{ ok: true }>(
     `/api/promises/${promiseId}/place/suggestions?id=${encodeURIComponent(suggestionId)}`,
+    { method: "DELETE" }
+  );
+}
+
+// ---------------------------------------------------------------- 날짜 맞추기
+
+import type { DateOption, DateVote } from "@/lib/types";
+
+/** 날짜 후보 올리기. 올린 사람은 자동으로 "돼요"에 들어간다. */
+export function addDateOption(promiseId: string, input: { date: string; time: string }) {
+  return request<DateOption>(`/api/promises/${promiseId}/dates`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** 이 날짜에 올 수 있는지 답하기. 다시 누르면 갈아 끼워진다. */
+export function voteDateOption(promiseId: string, optionId: string, vote: DateVote) {
+  return request<{ ok: true }>(`/api/promises/${promiseId}/dates`, {
+    method: "PATCH",
+    body: JSON.stringify({ optionId, vote }),
+  });
+}
+
+/** 날짜 확정 — 만든 사람만. 참여자들의 출발 시각이 여기서 처음 생긴다. */
+export function confirmDate(promiseId: string, input: { date: string; time: string }) {
+  return request<{ recalculated: number }>(`/api/promises/${promiseId}/dates`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+/** 후보 거두기. 올린 본인 또는 만든 사람. */
+export function removeDateOption(promiseId: string, optionId: string) {
+  return request<{ ok: true }>(
+    `/api/promises/${promiseId}/dates?id=${encodeURIComponent(optionId)}`,
     { method: "DELETE" }
   );
 }

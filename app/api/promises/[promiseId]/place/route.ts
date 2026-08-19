@@ -39,8 +39,16 @@ export const POST = withCaller<Ctx>(async (caller, req, ctx) => {
 export const PATCH = withCaller<Ctx>(async (caller, req, ctx) => {
   const { promiseId } = await ctx.params;
 
+  // 이름을 비워둘 수 있게 푼 이유: 온라인 플랜에서 링크를 지우면 서비스
+  // 이름도 같이 빈다. 오프라인 플랜의 "이름 없는 장소"는 place-service가
+  // 그대로 막는다 — 검사를 없앤 게 아니라 온라인 경로만 통과시킨 것이다.
   const parsed = placeSchema
-    .extend({ placeId: z.string().nullable().optional() })
+    .extend({
+      name: z.string().trim().max(120).default(""),
+      placeId: z.string().nullable().optional(),
+      // 온라인 플랜은 좌표 대신 링크를 바꾼다.
+      meetingUrl: z.string().trim().max(500).nullable().optional(),
+    })
     .safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     throw badRequest(parsed.error.issues[0]?.message ?? "장소 정보가 올바르지 않습니다.");

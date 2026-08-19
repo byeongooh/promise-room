@@ -44,6 +44,8 @@ export interface CreatePromiseInput {
   date: string;
   time: string;
   location: string;
+  meetingMode?: "inPerson" | "online";
+  meetingUrl?: string | null;
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
@@ -89,6 +91,8 @@ export async function createPromise(caller: Caller, input: CreatePromiseInput): 
     date: input.date,
     time: input.time,
     location: input.location,
+    meetingMode: input.meetingMode ?? "inPerson",
+    meetingUrl: input.meetingUrl ?? null,
     locationLat: input.locationLat ?? null,
     locationLng: input.locationLng ?? null,
     locationPlaceId: input.locationPlaceId ?? null,

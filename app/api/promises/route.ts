@@ -16,7 +16,11 @@ const createSchema = z.object({
   //  계산할 수 있는 게 없다.)
   date: z.string().trim().max(10).default(""),
   time: z.string().trim().max(5).default(""),
-  location: z.string().trim().min(1, "장소를 선택해주세요."),
+  // 장소도 비워둘 수 있다. 날짜와 같은 이유 — 어디서 볼지 먼저 맞춰야 하는
+  // 모임이 있다. 온라인 플랜이면 애초에 장소라는 게 없다.
+  location: z.string().trim().max(200).default(""),
+  meetingMode: z.enum(["inPerson", "online"]).default("inPerson"),
+  meetingUrl: z.string().trim().max(500).nullable().optional(),
   locationLat: z.number().optional(),
   locationLng: z.number().optional(),
   locationPlaceId: z.string().nullable().optional(),

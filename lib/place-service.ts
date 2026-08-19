@@ -12,6 +12,7 @@ import {
   promiseRef,
   requireParticipant,
 } from "@/lib/promise-service";
+import { isOnline, safeMeetingUrl } from "@/lib/meeting-mode";
 import type {
   PlaceCheck,
   PlaceMemberTime,
@@ -231,7 +232,14 @@ export async function checkPlace(
 export async function changePlace(
   caller: Caller,
   promiseId: string,
-  place: { name: string; lat: number; lng: number; placeId?: string | null }
+  place: {
+    name: string;
+    lat: number;
+    lng: number;
+    placeId?: string | null;
+    /** 온라인 플랜에서 들어갈 링크. 오프라인이면 무시된다. */
+    meetingUrl?: string | null;
+  }
 ): Promise<{ recalculated: number }> {
   const snap = await promiseRef(promiseId).get();
   if (!snap.exists) throw notFound("플랜을 찾을 수 없습니다.");
@@ -240,6 +248,22 @@ export async function changePlace(
   if (!isCreatorOf(data, caller)) {
     throw forbidden("약속 장소는 플랜을 만든 사람만 바꿀 수 있습니다.");
   }
+
+  // 온라인 플랜은 좌표도 이동시간도 없다. 바꾸는 건 링크 하나뿐이라
+  // 여기서 끝난다 — 아래 재계산까지 가면 0,0 좌표로 길을 찾게 된다.
+  if (isOnline(data as { meetingMode?: "inPerson" | "online" })) {
+    const url = safeMeetingUrl(place.meetingUrl);
+    if (place.meetingUrl && !url) {
+      throw badRequest("링크는 http:// 또는 https:// 로 시작해야 합니다.");
+    }
+    await promiseRef(promiseId).update({
+      meetingUrl: url,
+      location: place.name?.trim() ?? "",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { recalculated: 0 };
+  }
+
   if (!place.name?.trim()) throw badRequest("장소 이름이 없습니다.");
   if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) {
     throw badRequest("장소 좌표가 없습니다.");

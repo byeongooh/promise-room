@@ -34,6 +34,9 @@ import MemberBoard from "../../../components/member-board";
 import DepartureBlock from "../../../components/departure-block";
 import PlaceCompare from "../../../components/place-compare";
 import PlaceSuggestions from "../../../components/place-suggestions";
+import DateVoteBoard from "../../../components/date-vote";
+import OnlineMeetingCard from "../../../components/online-meeting-card";
+import { displayWhere, isOnline } from "../../../lib/meeting-mode";
 import {
   displayLocation,
   formatWhen,
@@ -404,6 +407,10 @@ export default function PromisePage() {
   const isParticipant = isPromiseParticipant(promiseData, currentUserId, currentUser ?? undefined);
   const displayCreatorName = promiseData.creatorName ?? promiseData.creator ?? "알 수 없음";
 
+  // 온라인이면 오가는 시간이라는 개념이 없어서 지도·경로·장소 비교가 다 빠진다.
+  const online = isOnline(promiseData);
+  const dateUndecided = getPromiseDate(promiseData) === null;
+
   const countdown = getCountdown(getPromiseDate(promiseData));
   const stubTone =
     countdown.tone === "now"
@@ -478,7 +485,7 @@ export default function PromisePage() {
               </p>
               <p className="tk-meta flex items-center gap-2">
                 <MapPin className="size-4 shrink-0 opacity-60" />
-                {displayLocation(promiseData.location)}
+                {displayWhere(promiseData)}
               </p>
             </div>
 
@@ -492,7 +499,9 @@ export default function PromisePage() {
           </div>
         </div>
 
-        {/* 나가야 하는 시각 — 이 앱이 파는 값이라 지도보다 위에 둔다 */}
+        {/* 나가야 하는 시각 — 이 앱이 파는 값이라 지도보다 위에 둔다.
+            온라인 플랜은 나갈 일이 없다. */}
+        {!online && (
         <DepartureBlock
           leaveAt={myLeaveAt}
           route={myRoute}
@@ -501,8 +510,20 @@ export default function PromisePage() {
             document.getElementById("how-to-go")?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
         />
+        )}
 
-        {/* 약속 장소 — 경로를 고르면 이 지도 위에 그려진다 */}
+        {/* 온라인 플랜 — 지도 대신 들어갈 링크 */}
+        {online && (
+          <OnlineMeetingCard
+            promise={promiseData}
+            isOwner={isOwner}
+            onChanged={() => fetchPromiseData(promiseId)}
+          />
+        )}
+
+        {/* 약속 장소 — 경로를 고르면 이 지도 위에 그려진다.
+            온라인 플랜에는 장소가 없고, 좌표가 없으면 그릴 지도도 없다. */}
+        {!online && destinationCoord && (
         <section className="mb-3 rounded-2xl bg-[var(--tk-paper)] p-4 shadow-sm ring-1 ring-black/5">
           <p className="mb-2.5 tk-label text-[var(--tk-faint)]">
             {mapRoute ? "가는 길" : "플랜 장소"}
@@ -547,45 +568,64 @@ export default function PromisePage() {
             </p>
           )}
         </section>
+        )}
 
-        {/* 올라온 장소 제안 — 있을 때만 보인다 */}
-        <PlaceSuggestions
-          promiseId={promiseId}
-          suggestions={promiseData.placeSuggestions ?? []}
-          isOwner={isOwner}
-          myUid={currentUserId}
-          onChanged={() => fetchPromiseData(promiseId)}
-        />
+        {/* 언제 만날까 — 날짜가 아직이거나, 이미 올라온 후보가 있을 때 */}
+        {(dateUndecided || (promiseData.dateOptions?.length ?? 0) > 0) && (
+          <DateVoteBoard
+            promiseId={promiseId}
+            options={promiseData.dateOptions ?? []}
+            participantCount={promiseData.participantIds?.length ?? 0}
+            isOwner={isOwner}
+            myUid={currentUserId}
+            onChanged={() => fetchPromiseData(promiseId)}
+          />
+        )}
 
-        {/* 다 같이 편한 곳 찾기 — 계산은 누구나, 변경은 만든 사람만 */}
-        <PlaceCompare
-          promiseId={promiseId}
-          currentPlace={{
-            name: displayLocation(promiseData.location),
-            lat: promiseData.locationLat ?? null,
-            lng: promiseData.locationLng ?? null,
-          }}
-          isOwner={isOwner}
-          onChanged={() => fetchPromiseData(promiseId)}
-        />
-
-        {/* 얼마나 걸리는지 — 저장된 경로를 다 읽은 뒤에 그려야 되살릴 수 있다 */}
-        {memberLoaded && (
-          <div id="how-to-go">
-            <TravelTime
-              destination={destinationCoord}
-              destinationName={displayLocation(promiseData.location)}
-              onRouteChange={setMapRoute}
+        {/* 아래는 전부 "오가는 시간"에 기대는 것들이라 온라인 플랜에는 안 나온다. */}
+        {!online && (
+          <>
+            {/* 올라온 장소 제안 — 있을 때만 보인다 */}
+            <PlaceSuggestions
               promiseId={promiseId}
-              savedRoute={myRoute}
-              meetingAt={getPromiseDate(promiseData)}
-              onSaved={(route, leaveAt) => {
-                // 경로를 고르는 즉시 위 출발 시각 블록이 따라 바뀌어야 한다.
-                setMyRoute(route);
-                setMyLeaveAt(leaveAt);
-              }}
+              suggestions={promiseData.placeSuggestions ?? []}
+              isOwner={isOwner}
+              myUid={currentUserId}
+              onChanged={() => fetchPromiseData(promiseId)}
             />
-          </div>
+
+            {/* 다 같이 편한 곳 찾기 — 계산은 누구나, 변경은 만든 사람만 */}
+            <PlaceCompare
+              promiseId={promiseId}
+              currentPlace={{
+                name: displayWhere(promiseData),
+                lat: promiseData.locationLat ?? null,
+                lng: promiseData.locationLng ?? null,
+              }}
+              isOwner={isOwner}
+              onChanged={() => fetchPromiseData(promiseId)}
+            />
+
+            {/* 얼마나 걸리는지 — 저장된 경로를 다 읽은 뒤에 그려야 되살릴 수 있다.
+                갈 곳이 정해지지 않았으면 잴 대상이 없다. */}
+            {memberLoaded && destinationCoord && (
+              <div id="how-to-go">
+                <TravelTime
+                  destination={destinationCoord}
+                  destinationName={displayWhere(promiseData)}
+                  onRouteChange={setMapRoute}
+                  promiseId={promiseId}
+                  savedRoute={myRoute}
+                  meetingAt={getPromiseDate(promiseData)}
+                  onSaved={(route, leaveAt) => {
+                    // 경로를 고르는 즉시 위 출발 시각 블록이 따라 바뀌어야 한다.
+                    setMyRoute(route);
+                    setMyLeaveAt(leaveAt);
+                  }}
+                />
+              </div>
+            )}
+          </>
         )}
 
         {/* 참여자 — 누가 무엇을 타고 오는지, 지금 어디쯤인지 */}

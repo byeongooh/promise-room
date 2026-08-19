@@ -5,7 +5,16 @@ export interface PromiseData {
   title: string;
   date: string | Timestamp;
   time: string;
+  /** 오프라인이면 장소 이름. 아직 안 정했으면 빈 문자열("장소 정하는 중"). */
   location: string;
+  /**
+   * 어떻게 만나는지. 값이 없는 옛 플랜은 전부 직접 만남으로 본다.
+   * 온라인이면 이동시간이라는 개념이 없어서 출발지·경로·장소 비교가 다 빠진다.
+   * 판단은 lib/meeting-mode.ts 한 곳에서만 한다.
+   */
+  meetingMode?: "inPerson" | "online";
+  /** 온라인 플랜의 참여 링크(Zoom·디스코드·구글 미트 등). http(s)만 허용. */
+  meetingUrl?: string | null;
   locationLat?: number;
   locationLng?: number;
   locationPlaceId?: string | null;
@@ -39,8 +48,51 @@ export interface PromiseData {
    */
   placeSuggestions?: PlaceSuggestion[];
 
+  /**
+   * 언제 만날지 맞추는 중일 때 올라온 날짜 후보들.
+   *
+   * placeSuggestions와 같은 자리·같은 이유(문서 안 배열)다. 다른 점은 여기엔
+   * 참여자들의 O/△/X가 같이 붙는다는 것 — 장소는 이동시간이라는 객관적인
+   * 숫자로 견줄 수 있지만, 날짜는 각자 되는지 안 되는지를 물어보는 수밖에 없다.
+   */
+  dateOptions?: DateOption[];
+
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+// ---------------------------------------------------------------- 날짜 맞추기
+
+/** 이 날짜에 올 수 있는지. 억지로 이분법으로 만들지 않고 "애매"를 둔다. */
+export type DateVote = "ok" | "maybe" | "no";
+
+export interface DateOptionVote {
+  uid: string;
+  name: string;
+  vote: DateVote;
+}
+
+/** 날짜 후보 한 건. */
+export interface DateOption {
+  id: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:mm". 시간까지는 아직 안 정한 후보면 빈 문자열. */
+  time: string;
+  byUid: string;
+  byName: string;
+  /** ISO 문자열. 서버가 찍는다. */
+  createdAt: string;
+  votes: DateOptionVote[];
+}
+
+/** 후보 하나의 표를 세어 놓은 것. 화면에서 순위를 매기는 데 쓴다. */
+export interface DateTally {
+  ok: number;
+  maybe: number;
+  no: number;
+  /** 아직 아무 표도 안 낸 사람 수 */
+  pending: number;
 }
 
 // ---------------------------------------------------------------- 장소 비교
