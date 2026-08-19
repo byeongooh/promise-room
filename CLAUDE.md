@@ -95,10 +95,28 @@ node --env-file=.env.local scripts/check-odsay.mjs   # 대중교통 API 점검
 
 | | 자동차 | 대중교통 |
 |---|---|---|
-| 카카오모빌리티 | ✅ 하루 1만 건 무료 | ❌ API 없음 |
+| 카카오모빌리티 | ✅ 하루 1만 건 무료 | ⚠️ 제휴 계약 필요 (아래) |
 | 네이버 클라우드 | ✅ | ❌ 자동차만 |
 | ODsay | ❌ | ✅ 하루 1천 건 무료 |
 | TMAP | ✅ | ✅ 비쌈 |
+
+**카카오모빌리티 대중교통은 "없는" 게 아니라 "제휴 전용"이다.** 한동안 이
+문서에 "API 없음"이라고 잘못 적혀 있었다. 2026-08-19에 개발자 문서를 직접
+열어 확인한 사실은 이렇다.
+
+- 누구나 키만 받아 쓰는 **공개 길찾기 API는 자동차뿐**이다. 엔드포인트 5개
+  (`/v1/directions`, `/v1/waypoints/directions`, `/v1/origins/directions`,
+  `/v1/destinations/directions`, `/v1/future/directions`)가 전부 자동차 기반이다.
+- **제휴(Partnership) API에는 대중교통이 있다.**
+  `apis-navi.kakaomobility.com/affiliate/publictransit/v1/multimodal/directions`
+  (대중교통 통합 길찾기). 도보·자전거·지오코딩도 같은 제휴 전용이다.
+- 쓰려면 카카오비즈니스 계정을 만들고 **사업자명**을 포함한 앱 정보를
+  `tech.partners@kakaomobility.com`으로 보내 승인을 받아야 한다.
+  개인 프로젝트로는 사실상 문턱을 넘기 어려워 ODsay를 그대로 쓴다.
+- 나중에 사업자로 전환할 일이 생기면 여기를 다시 볼 것 — 자동차와 대중교통을
+  한 곳에서 받으면 키도 하나, 좌표계도 하나로 줄어든다.
+
+(네이버·TMAP 칸은 이번에 다시 확인하지 않았다. 예전에 조사한 내용 그대로다.)
 
 - 자동차는 **카카오모빌리티**. `KAKAO_CLIENT_ID`가 곧 REST 키라 별도 발급이 없다.
 - 대중교통은 **ODsay**. Server 방식으로 등록하면 공인 IP 고정을 요구하는데
