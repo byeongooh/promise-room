@@ -11,13 +11,13 @@ const FieldValue = admin.firestore.FieldValue;
 const COLLECTION = "promises";
 const PRIVATE = "private";
 const AUTH_DOC = "auth";
-const MEMBERS = "members";
+export const MEMBERS = "members";
 
 // 비밀번호 시도 제한: 10분 안에 10회
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 10 * 60 * 1000;
 
-function promiseRef(promiseId: string) {
+export function promiseRef(promiseId: string) {
   return db.collection(COLLECTION).doc(promiseId);
 }
 
@@ -35,7 +35,7 @@ function attemptsRef(promiseId: string, uid: string) {
  * 문자는 '/' 뿐이라 "kakao:123"은 그대로 쓸 수 있고, 그래야 화면에서
  * 목록을 뒤지지 않고 곧바로 내 문서를 집을 수 있다.
  */
-function memberRef(promiseId: string, uid: string) {
+export function memberRef(promiseId: string, uid: string) {
   return promiseRef(promiseId).collection(MEMBERS).doc(uid);
 }
 
@@ -58,7 +58,7 @@ export interface PromiseSummary {
 }
 
 /** 해당 문서에서 이 사용자가 작성자인지 (v2 ID 우선, 레거시 이름 폴백). */
-function isCreatorOf(data: FirebaseFirestore.DocumentData, caller: Caller): boolean {
+export function isCreatorOf(data: FirebaseFirestore.DocumentData, caller: Caller): boolean {
   if (data.creatorId) return isSameUser(data.creatorId as string, caller.uid);
   return !!caller.name && data.creator === caller.name;
 }
@@ -306,7 +306,7 @@ export interface MemberRouteInput {
  * 들어 있다. 서버(Vercel)는 UTC로 도니까 `new Date(y, m-1, d)`로 만들면
  * 9시간이 밀린다. 그래서 KST(UTC+9)임을 명시해서 만든다.
  */
-function promiseInstant(data: FirebaseFirestore.DocumentData): Date | null {
+export function promiseInstant(data: FirebaseFirestore.DocumentData): Date | null {
   const raw = data.date;
   let y: number, m: number, d: number;
 
@@ -329,7 +329,7 @@ function promiseInstant(data: FirebaseFirestore.DocumentData): Date | null {
 }
 
 /** 참여자가 아니면 던진다. 상태 관련 쓰기는 전부 이걸 먼저 통과한다. */
-async function requireParticipant(
+export async function requireParticipant(
   promiseId: string,
   caller: Caller
 ): Promise<FirebaseFirestore.DocumentData> {
@@ -380,6 +380,9 @@ export async function setMemberRoute(
     {
       uid: caller.uid,
       name: caller.name?.trim() || "이름 없음",
+      // 경로 안에도 출발지가 들어가지만, 경로와 별개로 origin에도 남긴다.
+      // 경로를 지워도 출발지는 남아 있어야 장소 후보를 계산할 수 있다.
+      origin: route.origin,
       route: {
         kind: route.kind,
         label: route.label,

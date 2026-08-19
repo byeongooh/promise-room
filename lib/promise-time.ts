@@ -39,9 +39,14 @@ function startOfDay(d: Date): Date {
   return c;
 }
 
-/** 남은 시간을 스텁용 문구로 만든다. */
+/**
+ * 남은 시간을 스텁용 문구로 만든다.
+ *
+ * 날짜를 아직 안 정한 플랜은 "정하는 중"이다. "—"처럼 비워두면 데이터가
+ * 빠진 것처럼 보이는데, 이건 빠진 게 아니라 아직 고르는 단계라는 상태다.
+ */
 export function getCountdown(target: Date | null, now: Date = new Date()): Countdown {
-  if (!target) return { badge: "—", detail: "날짜 미정", tone: "later" };
+  if (!target) return { badge: "미정", detail: "정하는 중", tone: "later" };
 
   const diffMs = target.getTime() - now.getTime();
   const dayDiff = Math.round(
@@ -80,7 +85,7 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 /** "3월 15일 (일) 16:00" */
 export function formatWhen(target: Date | null): string {
-  if (!target) return "날짜 정보 없음";
+  if (!target) return "날짜 정하는 중";
   const m = target.getMonth() + 1;
   const d = target.getDate();
   const w = WEEKDAYS[target.getDay()];
@@ -102,7 +107,17 @@ export function displayLocation(location?: string): string {
   return v;
 }
 
-/** 다가오는 약속을 가까운 순으로, 지난 약속은 뒤로 보낸다. */
+/** 날짜를 아직 안 정한 플랜인지. */
+export function isDateUndecided(promise: Pick<PromiseData, "date" | "time">): boolean {
+  return getPromiseDate(promise) === null;
+}
+
+/**
+ * 다가오는 약속을 가까운 순으로, 지난 약속은 뒤로 보낸다.
+ *
+ * 날짜 미정 플랜은 다가오는 묶음의 끝에 둔다. 시간 축이 없어서 어디에도
+ * 끼울 수 없는데, 지난 것으로 내리면 아직 살아 있는 약속이 묻힌다.
+ */
 export function sortByWhen<T extends Pick<PromiseData, "date" | "time">>(
   promises: T[],
   now: Date = new Date()

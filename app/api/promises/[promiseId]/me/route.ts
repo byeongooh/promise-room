@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { badRequest, withCaller } from "@/lib/api-guard";
 import { setMemberRoute, setMemberStatus } from "@/lib/promise-service";
+import { setMemberOrigin } from "@/lib/place-service";
 
 // 이 약속에서의 "나" — 고른 경로와 확인/가는 중/도착 상태.
 //
@@ -34,9 +35,18 @@ const routeSchema = z.object({
 // route와 status 둘 다 선택이다. 경로만 저장할 때도, 상태만 바꿀 때도
 // 같은 엔드포인트를 쓴다. route: null 은 "고른 경로 지우기"라는 뜻이라
 // "안 보냄"과 구분해야 해서 nullable + optional을 따로 쓴다.
+const originSchema = z.object({
+  label: z.string().min(1).max(60),
+  lat: z.number(),
+  lng: z.number(),
+});
+
 const patchSchema = z
   .object({
     route: routeSchema.nullable().optional(),
+    // 경로를 고르지 않아도 출발지만 정해둘 수 있다. 장소 후보를 계산할 때
+    // 참여자 전원의 출발지가 필요해서다.
+    origin: originSchema.nullable().optional(),
     // 버튼으로만 고르는 값이라 사용자가 틀릴 일은 없지만, 오류 문구는
     // 이 프로젝트 규칙대로 한국어로 돌려준다.
     status: z
@@ -45,9 +55,10 @@ const patchSchema = z
       })
       .optional(),
   })
-  .refine((v) => v.route !== undefined || v.status !== undefined, {
-    message: "바꿀 내용이 없습니다.",
-  });
+  .refine(
+    (v) => v.route !== undefined || v.status !== undefined || v.origin !== undefined,
+    { message: "바꿀 내용이 없습니다." }
+  );
 
 export const PATCH = withCaller<Ctx>(async (caller, req, ctx) => {
   const { promiseId } = await ctx.params;
@@ -64,6 +75,9 @@ export const PATCH = withCaller<Ctx>(async (caller, req, ctx) => {
   }
   if (parsed.data.status !== undefined) {
     await setMemberStatus(caller, promiseId, parsed.data.status);
+  }
+  if (parsed.data.origin !== undefined) {
+    await setMemberOrigin(caller, promiseId, parsed.data.origin);
   }
 
   return NextResponse.json({ ok: true, leaveAt });

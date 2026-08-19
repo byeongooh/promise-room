@@ -97,7 +97,12 @@ export type MemberStatus = "unknown" | "onway" | "arrived";
  */
 export function updateMyMember(
   promiseId: string,
-  patch: { route?: MemberRouteInput | null; status?: MemberStatus }
+  patch: {
+    route?: MemberRouteInput | null;
+    status?: MemberStatus;
+    /** 경로를 고르지 않아도 출발지만 정해둘 수 있다. */
+    origin?: { label: string; lat: number; lng: number } | null;
+  }
 ) {
   return request<{ ok: true; leaveAt: string | null }>(`/api/promises/${promiseId}/me`, {
     method: "PATCH",
@@ -112,4 +117,55 @@ export function setPromiseFavorite(promiseId: string, favorite: boolean) {
     method: "PATCH",
     body: JSON.stringify({ favorite }),
   });
+}
+
+// ---------------------------------------------------------------- 약속 장소
+
+import type { PlaceCheck, PlaceSummary, PlaceSuggestion } from "@/lib/types";
+
+export interface PlaceInput {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * 후보 장소 하나를 계산해본다. 아무것도 바꾸지 않는다.
+ *
+ * 참여자 수만큼 외부 길찾기 API를 부르므로(ODsay 하루 1천 건) 자동으로
+ * 부르지 말 것. 사용자가 후보를 고른 순간에만 부른다.
+ */
+export function checkPlace(promiseId: string, place: PlaceInput) {
+  return request<PlaceCheck>(`/api/promises/${promiseId}/place`, {
+    method: "POST",
+    body: JSON.stringify(place),
+  });
+}
+
+/** 약속 장소를 실제로 바꾼다. 만든 사람만. 참여자들의 출발 시각도 다시 계산된다. */
+export function changePlace(
+  promiseId: string,
+  place: PlaceInput & { placeId?: string | null }
+) {
+  return request<{ recalculated: number }>(`/api/promises/${promiseId}/place`, {
+    method: "PATCH",
+    body: JSON.stringify(place),
+  });
+}
+
+/** 계산해본 곳을 만든 사람에게 제안한다. 방금 잰 요약을 같이 보낸다. */
+export function suggestPlace(promiseId: string, place: PlaceInput, summary: PlaceSummary) {
+  return request<PlaceSuggestion>(`/api/promises/${promiseId}/place/suggestions`, {
+    method: "POST",
+    body: JSON.stringify({ ...place, summary }),
+  });
+}
+
+/** 제안 거두기. 올린 본인 또는 만든 사람. */
+export function removePlaceSuggestion(promiseId: string, suggestionId: string) {
+  return request<{ ok: true }>(
+    `/api/promises/${promiseId}/place/suggestions?id=${encodeURIComponent(suggestionId)}`,
+    { method: "DELETE" }
+  );
 }
