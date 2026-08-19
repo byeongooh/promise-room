@@ -1,4 +1,4 @@
-import { DirectionsUnavailable, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
+import { DirectionsUnavailable, odsayReferer, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 경로를 지도에 그릴 좌표로 바꾼다 (ODsay loadLane).
 //
@@ -82,7 +82,7 @@ export async function getRouteSegments(
   const res = await fetch(`${ENDPOINT}?${params}`, {
     cache: "no-store",
     headers: {
-      Referer: process.env.ODSAY_REGISTERED_URI ?? "https://promise-room.vercel.app",
+      Referer: odsayReferer(),
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",

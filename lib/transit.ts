@@ -1,23 +1,14 @@
-import { DirectionsUnavailable, isPlausibleKoreanCoord, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
+import { DirectionsUnavailable, isPlausibleKoreanCoord, odsayReferer, readApiKey, type Coordinate, type OdsayError } from "@/lib/directions";
 
 // 대중교통 길찾기 (ODsay).
 //
-// 카카오·네이버는 대중교통 경로를 API로 열어주지 않는다. 국내에서 대중교통
-// 소요시간을 직접 계산하려면 ODsay나 TMAP을 써야 한다. ODsay를 골랐다.
+// 카카오의 공개 길찾기 API는 자동차뿐이고(대중교통은 제휴 승인이 필요하다),
+// 네이버도 자동차만 연다. 개인 프로젝트가 키만 받아 쓸 수 있는 대중교통은
+// 사실상 ODsay와 TMAP뿐이라 ODsay를 골랐다. 자세한 것은 CLAUDE.md 참고.
 //
 // ODSAY_API_KEY가 없으면 대중교통 칸만 빠지고 자동차는 그대로 나온다.
 
 const ENDPOINT = "https://api.odsay.com/v1/api/searchPubTransPathT";
-
-/** ODsay에 등록해둔 주소. 다른 도메인을 쓰게 되면 환경변수로 바꾼다. */
-function registeredOrigin(): string {
-  return (
-    process.env.ODSAY_REGISTERED_URI ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "http://localhost:3000")
-  );
-}
 
 /** 경로 안의 한 단계. "5531번 버스로 9정거장" 같은 것. */
 export interface TransitStep {
@@ -204,7 +195,7 @@ async function call(
   // 원래 브라우저에서 부르는 것을 전제로 한 등록이라 그쪽에 맞춘다.
   // (한때 이게 인증 실패의 원인인 줄 알고 넣었지만 아니었다. 진짜 원인은
   //  키에 섞여 들어간 공백이었다 — lib/directions.ts의 readApiKey 참고.)
-  const referer = registeredOrigin();
+  const referer = odsayReferer();
   const res = await fetch(`${ENDPOINT}?${params}`, {
     cache: "no-store",
     headers: {

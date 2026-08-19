@@ -130,3 +130,26 @@ export function readApiKey(name: string): string | undefined {
   const trimmed = raw?.trim();
   return trimmed ? trimmed : undefined;
 }
+
+/**
+ * ODsay 요청에 붙일 Referer.
+ *
+ * **배포 도메인과 무관하다.** ODsay 콘솔에 URI 방식으로 등록해둔 주소와
+ * 글자 그대로 같아야 하고, 그건 우리가 지금 어느 도메인에 떠 있는지와는
+ * 상관없는 값이다.
+ *
+ * 예전에는 이 값을 VERCEL_PROJECT_PRODUCTION_URL에서 자동으로 만들었다.
+ * 그러면 Vercel 프로젝트 이름을 바꾸는 순간 Referer가 조용히 따라 바뀌고,
+ * ODsay는 등록되지 않은 주소라며 인증을 거절한다 — 도메인을 바꾼 것과
+ * 대중교통이 죽은 것이 연결돼 보이지 않아 원인을 찾기 아주 어렵다.
+ * (실제로 이와 같은 종류의 인증 실패로 한참 헤맸다. CLAUDE.md의
+ *  "ODsay에서 크게 데인 것" 6·7번 참고.)
+ *
+ * 그래서 자동 감지를 없앴다. 바꾸려면 두 곳을 같이 바꾼다:
+ *   1. ODsay 콘솔(lab.odsay.com)의 등록 URI
+ *   2. 환경변수 ODSAY_REGISTERED_URI (또는 아래 기본값)
+ */
+export function odsayReferer(): string {
+  // 기본값 = 지금 ODsay에 등록되어 있는 주소.
+  return readApiKey("ODSAY_REGISTERED_URI") ?? "https://promise-room.vercel.app";
+}
