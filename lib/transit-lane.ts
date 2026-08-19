@@ -78,9 +78,15 @@ export async function getRouteSegments(
     apiKey: key,
   });
 
+  // User-Agent를 붙이는 이유는 lib/transit.ts의 같은 fetch 호출에 적어둔 것과 같다.
   const res = await fetch(`${ENDPOINT}?${params}`, {
     cache: "no-store",
-    headers: { Referer: process.env.ODSAY_REGISTERED_URI ?? "https://promise-room.vercel.app" },
+    headers: {
+      Referer: process.env.ODSAY_REGISTERED_URI ?? "https://promise-room.vercel.app",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    },
   });
   if (!res.ok) throw new DirectionsUnavailable(`ODsay 응답 ${res.status}`);
 
