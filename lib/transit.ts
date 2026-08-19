@@ -234,8 +234,12 @@ async function call(
   };
 
   if (data.error) {
-    const e = Array.isArray(data.error) ? data.error[0] : data.error;
-    throw new DirectionsUnavailable(`ODsay ${e?.code ?? ""} ${e?.msg ?? ""}`.trim());
+    // 에러 객체를 통째로 남긴다. code/msg만 뽑아 쓰다가 msg가 비어 있어
+    // "ODsay 500"이라는 코드 하나만 남았고, 그걸 HTTP 500으로 착각해
+    // 리전·User-Agent를 애먼 데를 고쳤다. 필드 이름이 msg가 아닐 수도 있다.
+    throw new DirectionsUnavailable(
+      `ODsay 오류 referer=${referer} error=${JSON.stringify(data.error).slice(0, 300)}`
+    );
   }
 
   return { paths: data.result?.path ?? [] };
