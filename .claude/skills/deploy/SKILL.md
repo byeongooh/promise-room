@@ -77,8 +77,12 @@ git push origin main
 Vercel MCP로 최신 배포의 커밋 해시와 상태를 확인한다.
 
 ```
-list_deployments(projectId: "promise-room", teamId: "team_BAGhiQBEzlY5sWWV5h50mpOz")
+list_deployments(projectId: "prj_dlaDXH98ulNqwOkwqiMJOaVgGSlK", teamId: "team_BAGhiQBEzlY5sWWV5h50mpOz")
 ```
+
+**이름이 아닌 프로젝트 ID를 쓴다.** 이 자리에 `"promise-room"` 같은 이름을 적으면
+Vercel에서 프로젝트 이름을 바꾸는 순간 조회가 실패한다. `prj_`로 시작하는 ID는
+이름을 바꿔도 그대로다. (프로젝트 이름을 applan으로 바꾸기로 하면서 겪을 뻔한 일.)
 
 방금 푸시한 커밋이 `state: "READY"`인지 본다. 아직이면 1~2분 뒤 다시 본다.
 푸시만 하고 "배포했습니다"라고 말하지 않는다.
@@ -86,8 +90,19 @@ list_deployments(projectId: "promise-room", teamId: "team_BAGhiQBEzlY5sWWV5h50mp
 ## 환경변수를 새로 넣었을 때
 
 **저장만으로는 적용되지 않는다.** 기존 배포본은 만들어질 때의 환경변수를
-그대로 들고 있다. 사용자에게 Vercel → Deployments → 맨 위 `⋯` → **Redeploy**를
-안내하고, 재배포가 실제로 생겼는지 `list_deployments`로 확인한다.
+그대로 들고 있다. 재배포를 안내하고, 실제로 생겼는지 `list_deployments`로
+확인한다.
+
+**"맨 위 `⋯`"라고 말하지 말 것.** Deployments 화면에는 `⋯`가 두 개 있고
+위쪽(필터 줄)에 있는 것은 목록 전체 메뉴라 Redeploy가 없다
+(Create Deployment / Git Settings / Deployment Retention뿐이다).
+실제로 이걸로 한 번 헤맸다. 이렇게 안내한다:
+
+> Deployments에서 **맨 위 배포를 눌러 상세 화면으로 들어간 뒤**,
+> 오른쪽 위 `⋯` → Redeploy.
+
+확인 창에서 Environment가 **Production**인지 본다. "같은 소스 코드에 최신
+Project Settings로"라고 쓰여 있는데, 그 Project Settings에 환경변수가 들어간다.
 
 ## 말할 때
 

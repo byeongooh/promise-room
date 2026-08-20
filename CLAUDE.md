@@ -9,15 +9,17 @@
 **실시간 위치를 공유**하는 것이 종착점이다. 그래서 웹 전용으로만 쓰이고 버려질
 작업(예: iOS 웹 푸시를 위한 PWA 우회)에는 시간을 쓰지 않는다.
 
-- 프로덕션: https://promise-room.vercel.app
+- 프로덕션: https://applan.vercel.app
+  (옛 주소 https://promise-room.vercel.app 도 그대로 열린다 — 이미 보낸
+   초대 링크를 살려두려고 안 지웠다)
 - 저장소: https://github.com/byeongooh/promise-room
 - Firebase 프로젝트: `promise-room`
 
-  세 주소 모두 이름이 아직 옛 이름(promise-room) 그대로다. **일부러 안 바꿨다** —
-  프로덕션 도메인을 바꾸면 이미 친구들에게 보낸 초대 링크가 전부 깨지고,
-  Firebase 프로젝트는 애초에 이름을 바꿀 방법이 없다(새 프로젝트를 만들어
-  데이터를 통째로 옮겨야 한다). 자세한 내용과 결정할 것은 아래
-  "이름을 어디까지 바꿀까" 절 참고.
+  **프로덕션 도메인은 2026-08-21에 applan으로 옮겼다**(아래 "도메인 변경" 절).
+  저장소와 Firebase는 아직 옛 이름이고, 둘은 사정이 다르다 — GitHub 저장소명은
+  바꿀 수 있지만 남의 링크·클론이 깨질 수 있어 미정이고, Firebase 프로젝트 ID는
+  애초에 이름을 바꿀 방법이 없다(새 프로젝트를 만들어 데이터를 통째로 옮겨야
+  한다). 자세한 내용은 아래 "이름을 어디까지 바꿀까" 절 참고.
 
 ## 기술 스택
 
@@ -218,18 +220,19 @@ Claude가 못 하는 것들이다.
 - **Firestore 색인 생성** — `participantIds`(array-contains) + `createdAt`(내림차순).
 - **외부 서비스 가입과 키 발급** (카카오·Firebase·ODsay·Vercel).
 - **환경변수 등록 후 Vercel 재배포** — 저장만 하면 기존 배포본에는 적용되지 않는다.
-- **이름을 어디까지 바꿀까 (결정 대기)** — 코드 안의 "Promise Room"은 Applan으로
-  다 바꿨지만, 실제 인프라 셋은 여전히 옛 이름이다. 셋 다 Claude가 혼자
-  결정해서 바꿀 수 없는 이유가 각각 다르다.
-  - **GitHub 저장소명**(`byeongooh/promise-room`) — `gh repo rename`으로 가능은
-    하지만, 이미 안 사람이 있는 링크·클론이 있으면 혼란을 준다.
-  - **Vercel 프로젝트/도메인**(`promise-room.vercel.app`) — 바꾸면 **친구들에게
-    이미 보낸 초대 링크가 전부 깨진다**. 커스텀 도메인을 새로 붙이는 쪽이 더
-    안전할 수 있다.
+- **이름을 어디까지 바꿀까** — 코드 안의 "Promise Room"은 Applan으로 다 바꿨다.
+  인프라 셋 중 하나는 옮겼고 둘은 남았다.
+  - **Vercel 프로젝트/도메인** — ✅ **2026-08-21에 `applan`으로 옮겼다.**
+    걱정했던 "초대 링크가 깨진다"는 문제는 옛 도메인을 지우지 않는 것으로
+    풀었다. 두 주소가 같이 산다. 아래 "도메인 변경" 절 참고.
+  - **GitHub 저장소명**(`byeongooh/promise-room`) — 아직 미정. `gh repo rename`
+    으로 가능은 하지만, 이미 안 사람이 있는 링크·클론이 있으면 혼란을 준다.
+    (GitHub은 옛 이름으로 온 요청을 새 이름으로 넘겨주므로 Vercel보다는
+     덜 위험하다. 다만 확인해보고 결정할 것.)
   - **Firebase 프로젝트**(`promise-room`) — 프로젝트 ID는 애초에 이름을
     바꿀 방법이 없다(구글 정책). 이름을 진짜 바꾸려면 새 프로젝트를 만들고
     Firestore 문서·인증·보안 규칙을 통째로 옮겨야 하는 큰 작업이다.
-  결론이 나기 전까지는 `lib/firebase.ts`의 설정과 두 서비스 URL을 손대지 않는다.
+    **`lib/firebase.ts`의 설정은 손대지 않는다.**
 
 ## 언제·어디서를 맞추는 방식 (2026-08-19 추가)
 
@@ -339,21 +342,45 @@ Claude가 못 하는 것들이다.
 친구가 한 명이라도 들어오면 실제로 밟히니 그때 다시 볼 것.
 카카오 로그인이 필요한 화면은 Claude가 눈으로 볼 수 없다는 점도 그대로다.
 
-**도메인 변경 — 진행 중 (2026-08-19)**
-`promise-room` → `applan`으로 바꾸기로 했다(친구들 링크가 깨져도 괜찮다고
-확인받음). 순서와 현재 위치:
+**도메인 변경 — 끝났다 (2026-08-21)**
+`promise-room` → `applan`. 프로덕션은 이제 **https://applan.vercel.app** 이다.
 1. ✅ 카카오 콘솔 — 앱 > 플랫폼 키에서 **REST API 키의 리다이렉트 URI**와
    **JS 키의 JS SDK 도메인 + 리다이렉트 URI**에 `applan.vercel.app` 추가 완료.
    (리다이렉트 URI 위치가 예전 문서와 다르다. "카카오 로그인 > 고급"이 아니라
     **앱 > 플랫폼 키** 안이다. 새 키를 만들지 말고 기존 Default 키를 수정할 것 —
     새로 만들면 `KAKAO_CLIENT_ID`와 안 맞아 로그인이 통째로 깨진다.)
-2. ⬜ Vercel 환경변수 `NEXTAUTH_URL` → `https://applan.vercel.app`
-3. ⬜ Vercel Settings > General > Project Name → `applan`
-4. ⬜ 곧바로 Redeploy (환경변수는 새 빌드부터 적용된다)
-5. ⬜ 나중에 ODsay 콘솔 등록 URI 변경 + `ODSAY_REGISTERED_URI` 설정
+2. ✅ Vercel 환경변수 `NEXTAUTH_URL` → `https://applan.vercel.app`
+3. ✅ Vercel Settings > General > Project Name → `applan`
+4. ✅ **Settings > Domains에서 `applan.vercel.app`을 직접 붙였다** — 아래 참고
+5. ✅ Redeploy (환경변수는 새 빌드부터 적용된다)
+6. ⬜ 나중에 ODsay 콘솔 등록 URI 변경 + `ODSAY_REGISTERED_URI` 설정
+
+**프로젝트 이름을 바꿔도 도메인은 안 따라온다.** 원래 계획에는 4번이 없었다.
+3번만 하면 `.vercel.app` 주소도 같이 바뀔 줄 알았는데, Vercel은 프로젝트
+이름과 도메인을 따로 관리한다. 이름은 `applan`이 됐는데 서비스는 계속
+`promise-room.vercel.app`에서 돌고 `applan.vercel.app`은 404였다.
+
+이 상태에서 재배포했으면 **로그인이 통째로 깨질 뻔했다.** `NEXTAUTH_URL`은
+이미 `applan.vercel.app`으로 바꿔둔 뒤라, 카카오에서 돌아올 곳이 404인
+주소가 된다. 화면은 멀쩡해 보이는데 로그인만 안 되는, 원인 찾기 나쁜 증상이다.
+**순서가 중요하다 — 도메인을 먼저 붙이고 재배포는 그다음.**
+(Settings > Domains > Add Existing > `applan.vercel.app`. Vercel 자기네
+하위 도메인이라 DNS 확인 같은 걸 묻지 않고 바로 붙는다. `Buy`는 돈 내고
+진짜 도메인을 사는 버튼이니 누르지 말 것.)
+
+**옛 주소도 그대로 살려뒀다.** `promise-room.vercel.app`을 지우지 않아서
+이미 보낸 초대 링크가 계속 열린다. 단 로그인하는 순간 `applan.vercel.app`
+으로 넘어간다 — `NEXTAUTH_URL`이 하나뿐이라 그렇고, 깨진 게 아니다.
+
+**확인한 방법.** `/api/auth/providers`를 부르면 NextAuth가 `NEXTAUTH_URL`로
+만든 `signinUrl`·`callbackUrl`을 그대로 돌려준다. 로그인 화면을 눈으로
+못 봐도 환경변수가 실제로 들어갔는지 이걸로 갈라볼 수 있다. 두 도메인
+모두 `https://applan.vercel.app/api/auth/callback/kakao`를 반환하는 것을
+확인했다. **사람이 카카오 로그인을 실제로 눌러 들어가지는 것까지 확인함**
+(2026-08-21). 즉 새 도메인에서 로그인은 확실히 된다.
 
 **대중교통은 3번을 해도 안 죽는다.** `odsayReferer()`가 배포 도메인이 아니라
-"ODsay에 등록된 주소"를 쓰도록 떼어놨기 때문이다. 그래서 5번은 급하지 않다.
+"ODsay에 등록된 주소"를 쓰도록 떼어놨기 때문이다. 그래서 6번은 급하지 않다.
 
 **정리할 것**
 - 이름을 어디까지 바꿀까 — 위 "도메인 변경" 참고. GitHub 저장소명은 아직 미정.
