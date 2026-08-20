@@ -107,12 +107,36 @@ export function updateMyMember(
     status?: MemberStatus;
     /** 경로를 고르지 않아도 출발지만 정해둘 수 있다. */
     origin?: { label: string; lat: number; lng: number } | null;
+    /**
+     * "나는 오늘 몇 시까지 가요" — "HH:mm"만 보낸다. 날짜를 붙이는 건 서버가
+     * 한다(브라우저 시간대에 따라 하루가 밀리는 것을 막으려고).
+     * null이면 지운다 = 약속 시각에 맞춰 온다는 뜻으로 되돌린다.
+     */
+    arrivalTime?: string | null;
+    /** 이번 플랜에 갈지. 방에서 나가는 것과는 다르다 — 명단에는 남는다. */
+    attendance?: "going" | "cant";
+    absenceReason?: string | null;
+    /** "이 장소면 가기 어려워요". null이면 거둔다. */
+    placeObjection?: string | null;
   }
 ) {
-  return request<{ ok: true; leaveAt: string | null }>(`/api/promises/${promiseId}/me`, {
-    method: "PATCH",
-    body: JSON.stringify(patch),
-  });
+  return request<{ ok: true; leaveAt: string | null; arrivalAt: string | null }>(
+    `/api/promises/${promiseId}/me`,
+    { method: "PATCH", body: JSON.stringify(patch) }
+  );
+}
+
+// ---------------------------------------------------------------- 확정
+
+/**
+ * 플랜을 확정하거나 되돌린다. 만든 사람만.
+ * 되돌려도 날짜·장소는 지워지지 않는다 — 다시 정하는 중 화면에서 고치면 된다.
+ */
+export function setPlanConfirmed(promiseId: string, confirmed: boolean) {
+  return request<{ ok: true; confirmedAt: string | null }>(
+    `/api/promises/${promiseId}/confirm`,
+    { method: confirmed ? "POST" : "DELETE" }
+  );
 }
 
 // ---------------------------------------------------------------- 즐겨찾기

@@ -375,9 +375,11 @@ export async function setMemberRoute(
     return { leaveAt: null };
   }
 
-  const meetAt = promiseInstant(data);
-  const leaveAt = meetAt
-    ? new Date(meetAt.getTime() - route.durationSec * 1000).toISOString()
+  // 기준은 약속 시각이 아니라 "내가 도착하려는 시각"이다. 30분 늦게 간다고
+  // 적어둔 사람에게 정시 기준 출발 시각을 주면 그 값이 틀린 값이 된다.
+  const target = targetArrival(data, (await ref.get()).data());
+  const leaveAt = target
+    ? new Date(target.getTime() - route.durationSec * 1000).toISOString()
     : null;
 
   await ref.set(
@@ -448,4 +450,233 @@ export async function setFavorite(
       : FieldValue.arrayRemove(caller.uid),
     updatedAt: FieldValue.serverTimestamp(),
   });
+}
+
+// ---------------------------------------------------- 확정 / 다시 정하기
+
+/**
+ * 플랜을 확정하거나, 확정을 되돌린다. 만든 사람만.
+ *
+ * 되돌리기를 남겨둔 이유가 이 기능의 핵심이다. 확정한 뒤에 "그 장소는 나한테
+ * 무리다"라는 말이 나올 수 있는데, 그때 방을 새로 파게 하면 그때까지의 투표와
+ * 출발지가 전부 날아간다. 확정은 문 잠그기가 아니라 되돌릴 수 있는 표시다.
+ *
+ * 되돌려도 날짜·장소는 지우지 않는다. 지워버리면 "조금만 고치자"가 불가능해지고,
+ * 어차피 다시 정하는 중 화면에서 바꿀 수 있다.
+ */
+export async function setPlanConfirmed(
+  caller: Caller,
+  promiseId: string,
+  confirmed: boolean
+): Promise<{ confirmedAt: string | null }> {
+  const snap = await promiseRef(promiseId).get();
+  if (!snap.exists) throw notFound("플랜을 찾을 수 없습니다.");
+  const data = snap.data() as FirebaseFirestore.DocumentData;
+
+  if (!isCreatorOf(data, caller)) {
+    throw forbidden("확정은 플랜을 만든 사람만 할 수 있습니다.");
+  }
+
+  if (confirmed) {
+    // 날짜나 장소가 비어 있는데 확정하면, 확정 화면이 "미정"을 크게 띄우는
+    // 이상한 상태가 된다. 무엇이 없는지 그대로 알려준다.
+    const missing: string[] = [];
+    if (!promiseInstant(data)) missing.push("날짜");
+
+    const online = data.meetingMode === "online";
+    if (online) {
+      if (!String(data.meetingUrl ?? "").trim()) missing.push("들어갈 링크");
+    } else {
+      const named = String(data.location ?? "").trim() !== "";
+      const located =
+        Number.isFinite(data.locationLat) && Number.isFinite(data.locationLng);
+      if (!named || !located) missing.push("장소");
+    }
+
+    if (missing.length > 0) {
+      throw badRequest(`${missing.join("와 ")}를 먼저 정해야 확정할 수 있습니다.`);
+    }
+  }
+
+  const confirmedAt = confirmed ? new Date().toISOString() : null;
+  await promiseRef(promiseId).update({
+    confirmedAt,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return { confirmedAt };
+}
+
+// ---------------------------------------------------- 내 도착 시각 · 참석
+
+/**
+ * 약속 날짜에 "HH:mm"을 얹어 실제 시각으로 만든다.
+ *
+ * promiseInstant와 같은 이유로 KST를 명시한다. 서버는 UTC로 도니까
+ * new Date(y, m-1, d, hh, mm)으로 만들면 9시간이 밀린다.
+ */
+function instantOnPlanDate(
+  data: FirebaseFirestore.DocumentData,
+  hhmm: string
+): Date | null {
+  const raw = data.date;
+  const [hh, mm] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+
+  let y: number, m: number, d: number;
+  if (raw && typeof raw.toDate === "function") {
+    // 옛 문서는 date가 Timestamp다. KST 기준 날짜를 뽑아 쓴다.
+    const base = raw.toDate() as Date;
+    if (Number.isNaN(base.getTime())) return null;
+    const kst = new Date(base.getTime() + 9 * 3_600_000);
+    y = kst.getUTCFullYear();
+    m = kst.getUTCMonth() + 1;
+    d = kst.getUTCDate();
+  } else {
+    if (typeof raw !== "string") return null;
+    [y, m, d] = raw.split("-").map(Number);
+    if (!y || !m || !d) return null;
+  }
+
+  const instant = new Date(Date.UTC(y, m - 1, d, hh - 9, mm));
+  if (Number.isNaN(instant.getTime())) return null;
+
+  // 자정을 넘겨 도착하는 경우.
+  //
+  // 23시 약속에 "00:30에 도착"이라고 적으면 날짜만 붙였을 때 같은 날 00:30이
+  // 되어 약속보다 22시간 반 *전*이 된다. 도착 시각은 약속 언저리의 값이므로,
+  // 약속보다 12시간 넘게 이르면 다음 날로 넘어간 것으로 본다.
+  const meetAt = promiseInstant(data);
+  if (meetAt && meetAt.getTime() - instant.getTime() > 12 * 3_600_000) {
+    return new Date(instant.getTime() + 24 * 3_600_000);
+  }
+  return instant;
+}
+
+/**
+ * 이 사람이 실제로 도착하려는 시각. 적어둔 게 있으면 그것, 없으면 약속 시각.
+ *
+ * "나가야 하는 시각"(leaveAt)의 기준이다. 30분 늦게 간다고 적어놓고 출발
+ * 시각은 정시 기준 그대로면, 이 앱이 파는 값이 바로 거짓말이 된다.
+ */
+function targetArrival(
+  data: FirebaseFirestore.DocumentData,
+  member: FirebaseFirestore.DocumentData | undefined
+): Date | null {
+  const own = member?.arrivalAt ? new Date(member.arrivalAt as string) : null;
+  if (own && !Number.isNaN(own.getTime())) return own;
+  return promiseInstant(data);
+}
+
+/**
+ * "나는 오늘 몇 시까지 가요" — 본인 도착 예정 시각.
+ *
+ * 클라이언트가 ISO가 아니라 "HH:mm"을 보낸다. 날짜는 플랜에 이미 있으므로
+ * 붙이는 건 서버가 한다 — 브라우저마다 시간대가 다를 수 있는데 그 계산을
+ * 클라이언트에 맡기면 해외에서 열었을 때 엉뚱한 시각이 저장된다.
+ *
+ * null이면 지운다(= 약속 시각에 맞춰 온다는 뜻으로 되돌린다).
+ */
+export async function setMemberArrival(
+  caller: Caller,
+  promiseId: string,
+  hhmm: string | null
+): Promise<{ arrivalAt: string | null }> {
+  const data = await requireParticipant(promiseId, caller);
+  const ref = memberRef(promiseId, caller.uid);
+
+  let arrivalAt: string | null = null;
+  if (hhmm) {
+    const at = instantOnPlanDate(data, hhmm);
+    if (!at) throw badRequest("도착 시각이 올바르지 않습니다.");
+    arrivalAt = at.toISOString();
+  }
+
+  // 도착 시각이 바뀌면 나가야 하는 시각도 따라 바뀐다.
+  // 30분 늦게 간다고 적었는데 출발 시각이 정시 기준 그대로면 그 값이 거짓말이
+  // 된다. 이미 고른 경로가 있을 때만 계산한다 — 소요시간을 모르면 뺄 게 없다.
+  const mine = (await ref.get()).data();
+  const durationSec = Number(mine?.route?.durationSec);
+  const base = arrivalAt ? new Date(arrivalAt) : promiseInstant(data);
+  const leaveAt =
+    base && Number.isFinite(durationSec) && durationSec > 0
+      ? new Date(base.getTime() - durationSec * 1000).toISOString()
+      : (mine?.leaveAt ?? null);
+
+  await ref.set(
+    {
+      uid: caller.uid,
+      name: caller.name?.trim() || "이름 없음",
+      arrivalAt,
+      leaveAt,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { arrivalAt };
+}
+
+export type MemberAttendance = "going" | "cant";
+
+/**
+ * 이번 플랜에 갈지 말지. 방을 나가는 것(leavePromise)과 다르다.
+ *
+ * 나가기로 처리하지 않는 이유: 장소 때문에 못 가는 경우가 많은데, 그때 방에서
+ * 빼버리면 장소가 바뀌어도 돌아올 방법이 비밀번호밖에 없다. 명단에는 남기고
+ * 표시만 바꾼다 — 방장이 "한 명은 못 온다"를 보고 장소를 다시 정할 수 있게.
+ */
+export async function setMemberAttendance(
+  caller: Caller,
+  promiseId: string,
+  attendance: MemberAttendance,
+  reason?: string | null
+): Promise<void> {
+  await requireParticipant(promiseId, caller);
+
+  await memberRef(promiseId, caller.uid).set(
+    {
+      uid: caller.uid,
+      name: caller.name?.trim() || "이름 없음",
+      attendance,
+      // 다시 간다고 하면 못 가는 이유는 남아 있을 이유가 없다.
+      absenceReason: attendance === "cant" ? (reason ?? "").trim() || null : null,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * "이 장소면 가기 어려워요". null이면 거둔다.
+ *
+ * 어느 장소에 대한 말인지 같이 남긴다. 장소가 바뀌면 이 이의는 무효라서
+ * place-service의 changePlace가 전원의 이의를 지우는데, 화면에서 "어디에
+ * 대한 말이었는지" 보여줄 때도 쓴다.
+ */
+export async function setPlaceObjection(
+  caller: Caller,
+  promiseId: string,
+  reason: string | null
+): Promise<void> {
+  const data = await requireParticipant(promiseId, caller);
+
+  const objection =
+    reason === null
+      ? null
+      : {
+          reason: reason.trim().slice(0, 200),
+          placeName: String(data.location ?? "").trim() || "정해진 장소",
+          at: new Date().toISOString(),
+        };
+
+  await memberRef(promiseId, caller.uid).set(
+    {
+      uid: caller.uid,
+      name: caller.name?.trim() || "이름 없음",
+      placeObjection: objection,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

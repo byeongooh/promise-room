@@ -265,45 +265,56 @@ export default function PlaceCompare({
                 </p>
               )}
 
-              {isOwner ? (
-                <button
-                  type="button"
-                  onClick={change}
-                  disabled={busy !== null}
-                  className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px]
-                    bg-[var(--tk-ink)] text-[14px] font-bold text-[var(--tk-paper)]
-                    transition hover:brightness-110 disabled:opacity-60"
-                >
-                  {busy === "change" ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Crown className="size-4" />
-                  )}
-                  이 장소로 바꾸기
-                </button>
-              ) : (
+              {/* 방장에게도 "제안하기"를 준다.
+                  전에는 방장이 바로 바꾸기만 할 수 있었는데, 그러면 방장은
+                  후보를 올릴 방법이 없다. 참여자가 방장 혼자인 플랜에서는
+                  제안이 영영 하나도 안 생겨서, 제안 목록의 "이걸로 정하기"
+                  버튼을 볼 수조차 없었다. 둘 다 열어두면 방장도 후보를 쌓아놓고
+                  견줘본 뒤 고를 수 있다. */}
+              <div className="mt-4 flex gap-1.5">
                 <button
                   type="button"
                   onClick={suggest}
                   disabled={busy !== null}
-                  className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px]
-                    bg-[var(--tk-ink)] text-[14px] font-bold text-[var(--tk-paper)]
-                    transition hover:brightness-110 disabled:opacity-60"
+                  className={`flex h-12 items-center justify-center gap-1.5 rounded-[10px]
+                    text-[14px] font-bold transition disabled:opacity-60 ${
+                      isOwner
+                        ? "flex-1 bg-[var(--tk-ground)] text-[var(--tk-ink)] hover:brightness-95"
+                        : "w-full bg-[var(--tk-ink)] text-[var(--tk-paper)] hover:brightness-110"
+                    }`}
                 >
                   {busy === "suggest" ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
                     <Send className="size-4" />
                   )}
-                  여기로 하자고 제안하기
+                  {isOwner ? "후보로 올리기" : "여기로 하자고 제안하기"}
                 </button>
-              )}
 
-              {!isOwner && (
-                <p className="tk-caption mt-2 text-center text-[var(--tk-assistive)]">
-                  장소를 실제로 바꾸는 건 플랜 만든 사람만 할 수 있어요
-                </p>
-              )}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={change}
+                    disabled={busy !== null}
+                    className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[10px]
+                      bg-[var(--tk-ink)] text-[14px] font-bold text-[var(--tk-paper)]
+                      transition hover:brightness-110 disabled:opacity-60"
+                  >
+                    {busy === "change" ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Crown className="size-4" />
+                    )}
+                    여기로 정하기
+                  </button>
+                )}
+              </div>
+
+              <p className="tk-caption mt-2 text-center text-[var(--tk-assistive)]">
+                {isOwner
+                  ? "후보로 올리면 다른 사람도 보고 견줄 수 있어요"
+                  : "장소를 실제로 정하는 건 플랜 만든 사람만 할 수 있어요"}
+              </p>
             </>
           )}
         </div>

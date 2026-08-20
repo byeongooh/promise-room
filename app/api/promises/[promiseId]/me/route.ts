@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { badRequest, withCaller } from "@/lib/api-guard";
-import { setMemberRoute, setMemberStatus } from "@/lib/promise-service";
+import {
+  setMemberArrival,
+  setMemberAttendance,
+  setMemberRoute,
+  setMemberStatus,
+  setPlaceObjection,
+} from "@/lib/promise-service";
 import { setMemberOrigin } from "@/lib/place-service";
 
 // 이 약속에서의 "나" — 고른 경로와 확인/가는 중/도착 상태.
@@ -54,9 +60,32 @@ const patchSchema = z
         errorMap: () => ({ message: "상태 값이 올바르지 않습니다." }),
       })
       .optional(),
+    // "나는 오늘 몇 시까지 가요" — 날짜는 플랜에 이미 있으므로 시각만 받는다.
+    // ISO를 받지 않는 이유는 promise-service의 setMemberArrival 주석 참고.
+    // null이면 지운다("약속 시각에 맞춰 온다"로 되돌리기).
+    arrivalTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: "도착 시각이 올바르지 않습니다." })
+      .nullable()
+      .optional(),
+    // 이번 플랜에 갈지. 방을 나가는 것(DELETE /join)과는 다른 축이다.
+    attendance: z
+      .enum(["going", "cant"], {
+        errorMap: () => ({ message: "참석 값이 올바르지 않습니다." }),
+      })
+      .optional(),
+    absenceReason: z.string().max(200).nullable().optional(),
+    // "이 장소면 가기 어려워요". null이면 거둔다.
+    placeObjection: z.string().max(200).nullable().optional(),
   })
   .refine(
-    (v) => v.route !== undefined || v.status !== undefined || v.origin !== undefined,
+    (v) =>
+      v.route !== undefined ||
+      v.status !== undefined ||
+      v.origin !== undefined ||
+      v.arrivalTime !== undefined ||
+      v.attendance !== undefined ||
+      v.placeObjection !== undefined,
     { message: "바꿀 내용이 없습니다." }
   );
 
@@ -69,6 +98,7 @@ export const PATCH = withCaller<Ctx>(async (caller, req, ctx) => {
   }
 
   let leaveAt: string | null = null;
+  let arrivalAt: string | null = null;
 
   if (parsed.data.route !== undefined) {
     ({ leaveAt } = await setMemberRoute(caller, promiseId, parsed.data.route));
@@ -79,6 +109,20 @@ export const PATCH = withCaller<Ctx>(async (caller, req, ctx) => {
   if (parsed.data.origin !== undefined) {
     await setMemberOrigin(caller, promiseId, parsed.data.origin);
   }
+  if (parsed.data.arrivalTime !== undefined) {
+    ({ arrivalAt } = await setMemberArrival(caller, promiseId, parsed.data.arrivalTime));
+  }
+  if (parsed.data.attendance !== undefined) {
+    await setMemberAttendance(
+      caller,
+      promiseId,
+      parsed.data.attendance,
+      parsed.data.absenceReason
+    );
+  }
+  if (parsed.data.placeObjection !== undefined) {
+    await setPlaceObjection(caller, promiseId, parsed.data.placeObjection);
+  }
 
-  return NextResponse.json({ ok: true, leaveAt });
+  return NextResponse.json({ ok: true, leaveAt, arrivalAt });
 });

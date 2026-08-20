@@ -85,6 +85,8 @@ interface MemberOrigin {
   name: string;
   origin: PlacePoint;
   kind: "car" | "transit";
+  /** 본인이 적어둔 도착 예정 시각(ISO). 없으면 약속 시각을 쓴다. */
+  arrivalAt: string | null;
 }
 
 async function readMemberOrigins(
@@ -118,6 +120,7 @@ async function readMemberOrigins(
       // 이미 고른 방식이 있으면 그걸 쓴다. 없으면 대중교통 — 모임 장소를
       // 고를 때 기준이 되는 건 보통 자동차가 아니라 지하철이다.
       kind: m?.route?.kind === "car" ? "car" : "transit",
+      arrivalAt: (m?.arrivalAt as string | undefined) ?? null,
     });
   });
 
@@ -279,6 +282,14 @@ export async function changePlace(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  // 장소가 바뀌면 "이 장소는 가기 어렵다"는 이의도 같이 무효가 된다.
+  // 그대로 두면 새 장소에 대한 반대인 것처럼 읽혀서 거짓말이 된다.
+  //
+  // 아래 재계산 루프와 따로 도는 이유: 그 루프는 출발지가 있고 길찾기까지
+  // 성공한 사람만 건드린다. 이의는 출발지를 안 정한 사람도 낼 수 있으므로
+  // 전원을 훑어야 한다.
+  await clearPlaceObjections(promiseId);
+
   const { withOrigin } = await readMemberOrigins(promiseId, data);
   const meetAt = promiseInstant(data);
   const destination = { lat: place.lat, lng: place.lng };
@@ -305,7 +316,13 @@ export async function changePlace(
             fare: null,
             firstStation: null,
           },
-          leaveAt: meetAt ? new Date(meetAt.getTime() - to.sec * 1000).toISOString() : null,
+          // 기준은 그 사람이 도착하려는 시각이다. 늦게 온다고 적어둔 사람에게
+          // 정시 기준 출발 시각을 주면 장소를 바꾸는 순간 그 값이 틀려진다.
+          leaveAt: (() => {
+            const own = m.arrivalAt ? new Date(m.arrivalAt) : null;
+            const base = own && !Number.isNaN(own.getTime()) ? own : meetAt;
+            return base ? new Date(base.getTime() - to.sec * 1000).toISOString() : null;
+          })(),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -374,4 +391,26 @@ export async function removePlaceSuggestion(
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+}
+
+/**
+ * 전원의 "이 장소는 가기 어렵다"를 지운다. 장소를 바꿀 때만 부른다.
+ *
+ * 이의가 붙어 있는 문서만 건드린다. 참여자가 늘어도 쓰기 횟수가 같이 늘지
+ * 않게 하려는 것이고, 아무것도 안 바뀌는 문서의 updatedAt을 흔들면 그 문서를
+ * 보고 있는 화면이 이유 없이 다시 그려진다.
+ */
+async function clearPlaceObjections(promiseId: string): Promise<void> {
+  const snap = await promiseRef(promiseId).collection(MEMBERS).get();
+
+  await Promise.all(
+    snap.docs
+      .filter((d) => d.data().placeObjection)
+      .map((d) =>
+        d.ref.set(
+          { placeObjection: null, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        )
+      )
+  );
 }

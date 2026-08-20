@@ -13,7 +13,7 @@ import type { PlaceSuggestion } from "@/lib/types";
 
 // 참여자들이 계산해서 올린 장소 후보들.
 //
-// 만든 사람에게는 "이걸로 바꾸기"가, 올린 본인에게는 "거두기"가 보인다.
+// 만든 사람에게는 "이걸로 정하기"가, 올린 본인에게는 "거두기"가 보인다.
 //
 // 여기 숫자는 제안한 시점에 잰 값이고 다시 계산하지 않는다. 목록을 열 때마다
 // 다시 재면 제안 수 × 참여자 수만큼 외부 API를 부르게 되는데 ODsay가 하루
@@ -87,7 +87,7 @@ export default function PlaceSuggestions({
       </p>
       <p className="tk-caption mb-3 text-[var(--tk-faint)]">
         {isOwner
-          ? "참여자들이 계산해본 후보예요. 바꿀지는 만든 사람이 정합니다."
+          ? "올라온 후보들이에요. 어디로 할지는 만든 사람이 정합니다."
           : "만든 사람이 보고 정합니다."}
       </p>
 
@@ -140,7 +140,7 @@ export default function PlaceSuggestions({
                       transition hover:brightness-110 disabled:opacity-60"
                   >
                     {working && <Loader2 className="size-3.5 animate-spin" />}
-                    이걸로 바꾸기
+                    이걸로 정하기
                   </button>
                 )}
                 {(isOwner || mine) && (

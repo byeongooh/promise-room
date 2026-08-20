@@ -178,7 +178,6 @@ export async function confirmDate(
 
   // leaveAt 다시 계산 — 여기서 처음으로 값이 생긴다.
   const meetAt = promiseInstant({ ...data, date: input.date, time: input.time });
-  if (!meetAt) return { recalculated: 0 };
 
   const members = await promiseRef(promiseId).collection(MEMBERS).get();
   let recalculated = 0;
@@ -186,12 +185,24 @@ export async function confirmDate(
   await Promise.all(
     members.docs.map(async (d) => {
       const m = d.data();
+
+      // 각자 적어둔 도착 시각은 옛 날짜에 붙어 있다. 날짜가 바뀌면 그대로
+      // 두는 순간 "3월 15일 6시 30분 도착"처럼 지난 날짜를 가리키게 되고,
+      // 그걸 기준으로 출발 시각까지 계산되면 값이 통째로 거짓말이 된다.
+      // 장소를 바꿀 때 장소 이의를 지우는 것과 같은 판단이다.
+      const hadArrival = !!m.arrivalAt;
       const sec = m.route?.durationSec;
-      if (!Number.isFinite(sec)) return;
-      recalculated += 1;
+      const canLeave = meetAt && Number.isFinite(sec);
+
+      if (!hadArrival && !canLeave) return;
+      if (canLeave) recalculated += 1;
+
       await memberRef(promiseId, d.id).set(
         {
-          leaveAt: new Date(meetAt.getTime() - (sec as number) * 1000).toISOString(),
+          ...(hadArrival ? { arrivalAt: null } : {}),
+          ...(canLeave
+            ? { leaveAt: new Date(meetAt!.getTime() - (sec as number) * 1000).toISOString() }
+            : {}),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
