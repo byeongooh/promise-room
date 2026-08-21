@@ -42,3 +42,7 @@ next-env.d.ts
 # 압축 안 풀고 zip 상태로 따로 보관해도 된다.
 design_handoff_applan/
 Senior appointment app redesign.zip
+# playwright-cli가 실행할 때마다 스크린샷·스냅샷·콘솔 로그를 여기에 쌓는다.
+# 작업 흔적이라 저장소에 들어갈 이유가 없고, 로그인한 화면을 찍은 스크린샷이
+# 섞이면 개인정보가 그대로 올라간다.
+.playwright-cli/
