@@ -10,7 +10,14 @@
 // 방식의 약점으로 짚었던 부분이라, 앱 아이콘이나 카톡 링크 미리보기처럼
 // 더 작아지는 자리에는 마크를 따로 만드는 게 낫다.
 
-import { APPLE_BODY, APPLE_SHINE, APPLE_STEM, APPLE_VIEWBOX } from "@/lib/apple-shape";
+import {
+  APPLE_BODY,
+  APPLE_SHINE,
+  APPLE_STEM,
+  APPLE_VIEWBOX,
+  showsShine,
+  stemWidth,
+} from "@/lib/apple-shape";
 
 const FONT_PX = { sm: 18, md: 24, lg: 32 } as const;
 
@@ -64,22 +71,28 @@ export default function Wordmark({
         style={{ transform: `translateY(${(px * 0.108).toFixed(2)}px)` }}
       >
         <path d={APPLE_BODY} fill="var(--ap-red)" />
-        {/* 광. 로고에서는 늘 색으로 그리므로 얹는다 — sm 크기에서는 거의
-            안 보이지만 방해도 되지 않는다. */}
-        <ellipse
-          cx={APPLE_SHINE.cx}
-          cy={APPLE_SHINE.cy}
-          rx={APPLE_SHINE.rx}
-          ry={APPLE_SHINE.ry}
-          transform={`rotate(${APPLE_SHINE.rotate} ${APPLE_SHINE.cx} ${APPLE_SHINE.cy})`}
-          fill="#fff"
-          opacity={0.3}
-        />
+        {/* 광은 크기가 될 때만 얹는다.
+            워드마크 사과는 제일 큰 lg에서도 26px이라 광이 1.8px밖에 안 된다 —
+            "반질하다"가 아니라 얼룩으로 보여서 사과를 지저분하게 만든다.
+            판단은 showsShine 한 곳에서만 한다(lib/apple-shape.ts). */}
+        {showsShine(w) && (
+          <ellipse
+            cx={APPLE_SHINE.cx}
+            cy={APPLE_SHINE.cy}
+            rx={APPLE_SHINE.rx}
+            ry={APPLE_SHINE.ry}
+            transform={`rotate(${APPLE_SHINE.rotate} ${APPLE_SHINE.cx} ${APPLE_SHINE.cy})`}
+            fill="#fff"
+            opacity={0.3}
+          />
+        )}
+        {/* 꼭지는 반대로 작을수록 굵어야 남는다. 사과라는 신호의 절반이 여기서
+            나오는데, 얇으면 회색 실처럼 묻힌다. */}
         <path
           d={APPLE_STEM}
           fill="none"
           stroke="var(--ap-leaf)"
-          strokeWidth={7}
+          strokeWidth={stemWidth(w)}
           strokeLinecap="round"
         />
       </svg>

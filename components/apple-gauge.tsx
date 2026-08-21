@@ -8,6 +8,8 @@ import {
   SPARKLES,
   WORM_BODY,
   WORM_HEAD,
+  showsShine,
+  stemWidth,
 } from "@/lib/apple-shape";
 import { gaugeRatio, poisonRatio, stageOf } from "@/lib/brix";
 
@@ -81,7 +83,12 @@ export default function AppleGauge({
   const stemColor = variant === "poison" ? "var(--ap-bruise)" : "var(--ap-leaf)";
 
   // 사과는 viewBox 100×112 기준이라 지름의 46% 크기로 가운데 놓는다.
-  const scale = (size * 0.46) / 100;
+  //
+  // 꼭지 굵기와 광 유무는 지름이 아니라 **줄여 넣은 뒤의 사과 폭**으로 정한다.
+  // 지름 64짜리 게이지 안의 사과는 29px밖에 안 되는데, 지름을 그대로 넘기면
+  // 큰 사과인 줄 알고 얇은 꼭지를 그린다.
+  const appleW = size * 0.46;
+  const scale = appleW / 100;
   const appleX = half - (100 * scale) / 2;
   const appleY = half - (112 * scale) / 2;
 
@@ -125,9 +132,11 @@ export default function AppleGauge({
           opacity={variant === "poison" ? 0.42 : 1}
         />
 
-        {/* 광. 독사과에는 얹지 않는다 — 멍든 사과가 반질하게 빛나면
-            "상했다"는 신호와 정반대로 읽힌다. */}
-        {variant !== "poison" && (
+        {/* 광. 두 가지 이유로 빠진다.
+            독사과 — 멍든 사과가 반질하게 빛나면 "상했다"와 정반대로 읽힌다.
+            작은 게이지 — 홈 요약(64) 안의 사과는 29px이라 광이 2px짜리
+            얼룩이 된다. 기준은 showsShine 한 곳에서만 잡는다. */}
+        {variant !== "poison" && showsShine(appleW) && (
           <ellipse
             cx={APPLE_SHINE.cx}
             cy={APPLE_SHINE.cy}
@@ -143,7 +152,7 @@ export default function AppleGauge({
           d={APPLE_STEM}
           fill="none"
           stroke={stemColor}
-          strokeWidth={6}
+          strokeWidth={stemWidth(appleW)}
           strokeLinecap="round"
           opacity={variant === "poison" ? 0.65 : 1}
         />

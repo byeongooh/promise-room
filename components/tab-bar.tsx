@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Plus } from "lucide-react";
 
-import { APPLE_BODY, APPLE_STEM, APPLE_VIEWBOX } from "@/lib/apple-shape";
+import { APPLE_BODY, APPLE_STEM, APPLE_VIEWBOX, stemWidth } from "@/lib/apple-shape";
 
 // 하단 탭바 — 홈 / 새 플랜 / 내 사과.
 //
@@ -34,7 +34,7 @@ function AppleIcon({ filled }: { filled: boolean }) {
         d={APPLE_STEM}
         fill="none"
         stroke="currentColor"
-        strokeWidth={9}
+        strokeWidth={stemWidth(20)}
         strokeLinecap="round"
       />
     </svg>
