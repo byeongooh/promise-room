@@ -259,3 +259,22 @@ export interface PlaceObjection {
   /** ISO. 서버가 찍는다. */
   at: string;
 }
+
+// ---------------------------------------------------------------- 달력 메모
+//
+// users/{uid}/notes/{id} 한 건. 나만 보는 것이라 플랜과 아예 다른 자리에 둔다.
+//
+// **읽기도 쓰기도 서버 API를 거친다.** 이 프로젝트는 읽기를 클라이언트가
+// Firestore에서 직접 하는 게 기본인데(실시간 구독이 필요해서), 메모는 나만
+// 바꾸므로 실시간일 이유가 없다. 서버로 돌리면 `users/` 보안 규칙을 새로
+// 짜서 콘솔에 배포하지 않아도 된다 — 그건 사람이 직접 해야 하는 일이라
+// 안 만들 수 있으면 안 만드는 게 낫다.
+
+export interface CalendarNote {
+  id: string;
+  /** "YYYY-MM-DD" 현지 기준. 달력이 이 열쇠로 묶는다. */
+  date: string;
+  text: string;
+  /** ISO. 서버가 찍는다. */
+  createdAt: string;
+}

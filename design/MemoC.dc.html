@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Pretendard Variable", "Pretendard", system-ui, -apple-system,
+        "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background: rgb(247, 247, 248);
+      color: rgb(23, 23, 23);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: rgb(178, 50, 42); }
+    a:hover { color: rgb(140, 38, 32); }
+    .lbl { font-size: 11px; line-height: 1.3; font-weight: 700; letter-spacing: 0.06em; }
+    .ttl { font-size: 16px; line-height: 1.35; font-weight: 700; letter-spacing: -0.02em; }
+    .meta { font-size: 13px; line-height: 1.5; font-weight: 400; }
+    .cap { font-size: 12px; line-height: 1.4; font-weight: 400; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 2px 0 rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.05); }
+  </style>
+</helmet>
+
+<div style="width: 390px; padding: 20px 16px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+
+  <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 2px">
+    <span class="lbl" style="color: rgb(178,50,42)">C안 · 약속 안에서</span>
+    <span class="cap" style="color: rgba(55,56,60,0.61); line-height: 1.5">메모를 따로 열지 않는다. 약속 카드가 그대로 챙길 것 목록이 된다.</span>
+  </div>
+
+  <div class="card" style="padding: 14px">
+    <div style="display: flex; gap: 10px; align-items: flex-start">
+      <svg width="20" height="22" viewBox="0 0 100 112" style="flex-shrink: 0; margin-top: 1px" aria-hidden="true">
+        <path d="M50 37C43 26 28 23 19 33C9 44 11 67 22 83C26 93 37 101 50 101C63 101 74 93 78 83C89 67 91 44 81 33C72 23 57 26 50 37Z" fill="rgb(178,50,42)"/>
+        <path d="M50 37C50 29 51 22 54 16" fill="none" stroke="rgb(74,128,88)" stroke-width="10" stroke-linecap="round"/>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0">
+        <span class="ttl">다음주 어디서 보징</span>
+        <span class="meta" style="color: rgba(55,56,60,0.61)">오후 9:00 · 해운대해수욕장</span>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px; padding: 10px 12px; background: rgba(178,50,42,0.10); border-radius: 10px; display: flex; align-items: center; gap: 7px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgb(178,50,42)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span style="font-size: 13px; font-weight: 700; color: rgb(178,50,42)">오후 4:15에 나가야 해요</span>
+    </div>
+
+    <div style="height: 1px; background: rgba(112,115,124,0.22); margin: 14px 0 12px"></div>
+
+    <p class="lbl" style="margin: 0 0 10px; color: rgba(55,56,60,0.61)">챙길 것</p>
+
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+        <button onClick="{{it.toggle}}" style="display:flex;align-items:center;gap:10px;padding:9px 4px;border:0;background:transparent;cursor:pointer;font-family:inherit;text-align:left;width:100%">
+          <span style="{{it.boxStyle}}">
+            <sc-if value="{{it.done}}" hint-placeholder-val="{{ true }}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </sc-if>
+          </span>
+          <span style="{{it.textStyle}}">{{it.text}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <button style="display: flex; align-items: center; gap: 10px; padding: 9px 4px; border: 0; background: transparent; cursor: pointer; font-family: inherit; width: 100%; margin-top: 2px">
+      <span style="width: 19px; height: 19px; border-radius: 6px; border: 1px dashed rgba(112,115,124,0.22); display: grid; place-items: center; flex-shrink: 0">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(55,56,60,0.28)" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      <span class="meta" style="color: rgba(55,56,60,0.28)">챙길 것 추가</span>
+    </button>
+  </div>
+
+  <div style="display: flex; gap: 8px; padding: 0 2px">
+    <span style="width: 3px; border-radius: 2px; background: rgba(74,128,88,0.35); flex-shrink: 0"></span>
+    <span class="cap" style="color: rgba(46,47,51,0.88); line-height: 1.6">약속을 보다가 <b style="font-weight: 700">그 자리에서</b> 적는다. 화면 이동이 없다.<br>대신 약속이 없는 날에는 쓸 자리가 없다.</span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { done: { 0: true } };
+  }
+  renderVals() {
+    const labels = ['선물 사기', '숙소 예약 확인', '충전기'];
+    const boxOn = 'width:19px;height:19px;border-radius:6px;background:rgb(74,128,88);display:grid;place-items:center;flex-shrink:0;';
+    const boxOff = 'width:19px;height:19px;border-radius:6px;box-shadow:inset 0 0 0 1.5px rgba(112,115,124,0.22);display:grid;place-items:center;flex-shrink:0;';
+    const textOn = 'font-size:13px;line-height:1.5;font-weight:400;color:rgba(55,56,60,0.28);text-decoration:line-through;';
+    const textOff = 'font-size:13px;line-height:1.5;font-weight:400;color:rgba(46,47,51,0.88);';
+    return {
+      items: labels.map((text, i) => ({
+        text,
+        done: !!this.state.done[i],
+        boxStyle: this.state.done[i] ? boxOn : boxOff,
+        textStyle: this.state.done[i] ? textOn : textOff,
+        toggle: () => {
+          const next = { ...this.state.done };
+          if (next[i]) delete next[i]; else next[i] = true;
+          this.setState({ done: next });
+        },
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

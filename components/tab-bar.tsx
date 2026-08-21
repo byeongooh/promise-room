@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Plus } from "lucide-react";
+import { CalendarDays, Home, Plus } from "lucide-react";
 
 import { APPLE_BODY, APPLE_STEM, APPLE_VIEWBOX, stemWidth } from "@/lib/apple-shape";
 
-// 하단 탭바 — 홈 / 새 플랜 / 내 사과.
+// 하단 탭바 — 홈 / 달력 / 새 플랜 / 내 사과.
 //
 // 예전에는 헤더에 "새 약속"과 "로그아웃" 버튼이 나란히 있었다. 축이 사람으로
 // 옮겨가면서 "내 사과"가 상시 갈 수 있는 자리여야 해서 아래로 내렸고,
@@ -45,6 +45,7 @@ export default function TabBar() {
   const path = usePathname();
   const onHome = path === "/";
   const onMe = path?.startsWith("/me") ?? false;
+  const onCalendar = path?.startsWith("/calendar") ?? false;
 
   const item = (active: boolean) =>
     `flex flex-1 flex-col items-center justify-center gap-1 py-2 transition ${
@@ -66,6 +67,15 @@ export default function TabBar() {
           <span className="text-[10.5px] font-bold">홈</span>
         </Link>
 
+        <Link
+          href="/calendar"
+          className={item(onCalendar)}
+          aria-current={onCalendar ? "page" : undefined}
+        >
+          <CalendarDays className="size-5" />
+          <span className="text-[10.5px] font-bold">달력</span>
+        </Link>
+
         {/* 새 플랜 — 가장 자주 누르는 것이라 가운데 큰 버튼으로 */}
         <div className="flex w-20 shrink-0 justify-center">
           <Link
@@ -80,7 +90,13 @@ export default function TabBar() {
           </Link>
         </div>
 
-        <Link href="/me" className={item(onMe)} aria-current={onMe ? "page" : undefined}>
+        {/* 왼쪽이 둘, 오른쪽이 하나라 그대로 두면 가운데 버튼이 오른쪽으로 밀린다.
+            오른쪽에 두 몫을 줘서 ➕가 바 한가운데에 오게 맞춘다. */}
+        <Link
+          href="/me"
+          className={`${item(onMe)} flex-[2]`}
+          aria-current={onMe ? "page" : undefined}
+        >
           <AppleIcon filled={onMe} />
           <span className="text-[10.5px] font-bold">내 사과</span>
         </Link>

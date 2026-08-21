@@ -234,3 +234,32 @@ export function removeDateOption(promiseId: string, optionId: string) {
     { method: "DELETE" }
   );
 }
+
+// ---------------------------------------------------------------- 달력 메모
+
+import type { CalendarNote } from "@/lib/types";
+
+/**
+ * 내 달력 메모 전부.
+ *
+ * 이것만 읽기도 서버를 거친다. 다른 화면은 Firestore를 직접 구독하는데,
+ * 메모는 나만 쓰고 나만 봐서 실시간일 이유가 없다. 서버로 돌리면 users/
+ * 보안 규칙을 새로 배포하지 않아도 된다(사람이 직접 해야 하는 일).
+ */
+export function fetchNotes() {
+  return request<{ notes: CalendarNote[] }>("/api/notes", { method: "GET" });
+}
+
+export function addNote(date: string, text: string) {
+  return request<{ note: CalendarNote }>("/api/notes", {
+    method: "POST",
+    body: JSON.stringify({ date, text }),
+  });
+}
+
+export function removeNote(id: string) {
+  return request<{ ok: true }>("/api/notes", {
+    method: "DELETE",
+    body: JSON.stringify({ id }),
+  });
+}

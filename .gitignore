@@ -46,3 +46,8 @@ Senior appointment app redesign.zip
 # 작업 흔적이라 저장소에 들어갈 이유가 없고, 로그인한 화면을 찍은 스크린샷이
 # 섞이면 개인정보가 그대로 올라간다.
 .playwright-cli/
+
+# 디자인 캔버스의 원본은 design/*.dc.html 과 canvas.json 이다.
+# applan-calendar.html 은 거기서 만들어낸 2MB짜리 결과물이라 깃에 넣지 않는다
+# (원본만 있으면 언제든 다시 만들 수 있다).
+design/applan-calendar.html
