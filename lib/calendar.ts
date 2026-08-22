@@ -128,3 +128,48 @@ export function formatDayLabel(key: string): string {
 export function formatMonthLabel(year: number, month: number): string {
   return `${year}년 ${month}월`;
 }
+
+// ---------------------------------------------------------------- 메모 칩
+//
+// "눌러서 담기" — 적는 게 원래 귀찮은 일이라 타이핑을 없애는 쪽으로 민다.
+
+/**
+ * 처음 쓰는 사람에게만 보여줄 기본 문구.
+ *
+ * 이력이 하나도 없으면 칩이 텅 비어서 이 기능이 뭘 하는 건지 알 수가 없다.
+ * 자리만 메우는 용도라 이력이 쌓이면 자연히 밀려난다.
+ */
+const SEED_CHIPS = ["현금 뽑기", "선물 사기", "충전기 챙기기", "예약 확인"];
+
+/**
+ * 자주 쓴 메모 문구를 많이 쓴 순으로.
+ *
+ * 목록을 박아두지 않고 **본인 이력에서 뽑는다.** 자주 적는 것은 사람마다
+ * 다른데("약 챙기기"가 필요한 사람과 "차 기름"이 필요한 사람은 다르다),
+ * 남이 정해준 목록은 결국 안 쓰인다. 쓸수록 자기 목록이 된다.
+ *
+ * 이미 그 자리에 적어둔 것(exclude)은 뺀다 — 같은 걸 두 번 담게 하면
+ * 칩이 도움이 아니라 실수를 부른다.
+ */
+export function frequentTexts(
+  notes: CalendarNote[],
+  exclude: string[] = [],
+  limit = 6
+): string[] {
+  const taken = new Set(exclude.map((t) => t.trim()));
+
+  const count = new Map<string, number>();
+  for (const n of notes) {
+    const t = n.text.trim();
+    if (!t || taken.has(t)) continue;
+    count.set(t, (count.get(t) ?? 0) + 1);
+  }
+
+  const out = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+
+  for (const s of SEED_CHIPS) {
+    if (out.length >= limit) break;
+    if (!out.includes(s) && !taken.has(s)) out.push(s);
+  }
+  return out.slice(0, limit);
+}

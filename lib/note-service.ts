@@ -37,6 +37,8 @@ export async function listNotes(caller: Caller): Promise<CalendarNote[]> {
       id: d.id,
       date: String(v.date ?? ""),
       text: String(v.text ?? ""),
+      promiseId: (v.promiseId as string | null | undefined) ?? null,
+      done: v.done === true,
       createdAt:
         typeof v.createdAt?.toDate === "function"
           ? (v.createdAt.toDate() as Date).toISOString()
@@ -44,6 +46,7 @@ export async function listNotes(caller: Caller): Promise<CalendarNote[]> {
     };
   });
 }
+
 
 /**
  * 메모 한 줄 추가.
@@ -56,7 +59,8 @@ export async function listNotes(caller: Caller): Promise<CalendarNote[]> {
 export async function addNote(
   caller: Caller,
   date: string,
-  text: string
+  text: string,
+  promiseId?: string | null
 ): Promise<CalendarNote> {
   if (!DATE_RE.test(date)) throw badRequest("날짜 형식이 올바르지 않습니다.");
 
@@ -64,14 +68,40 @@ export async function addNote(
   if (!body) throw badRequest("메모 내용이 비어 있습니다.");
   if (body.length > 200) throw badRequest("메모는 200자까지 쓸 수 있습니다.");
 
+  // 약속에 딸린 것인지 아닌지만 구분한다. 그 약속에 실제로 참여 중인지는
+  // 확인하지 않는다 — 이 메모는 남에게 안 보이고 내 달력에만 뜨므로,
+  // 엉뚱한 id를 넣어봐야 자기 화면에 안 붙는 메모가 하나 생길 뿐이다.
+  const linked = promiseId?.trim() || null;
+
   const ref = notesRef(caller.uid).doc();
   await ref.set({
     date,
     text: body,
+    promiseId: linked,
+    done: false,
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  return { id: ref.id, date, text: body, createdAt: new Date().toISOString() };
+  return {
+    id: ref.id,
+    date,
+    text: body,
+    promiseId: linked,
+    done: false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** 챙겼는지 표시. 체크리스트로 쓰일 때만 의미가 있다. */
+export async function setNoteDone(
+  caller: Caller,
+  noteId: string,
+  done: boolean
+): Promise<void> {
+  const ref = notesRef(caller.uid).doc(noteId);
+  const snap = await ref.get();
+  if (!snap.exists) throw notFound("메모를 찾을 수 없습니다.");
+  await ref.update({ done });
 }
 
 /** 메모 지우기. 남의 메모는 애초에 경로가 caller.uid라 닿지 않는다. */

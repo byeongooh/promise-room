@@ -13,7 +13,12 @@ import CalendarDay from "@/components/calendar-day";
 import CalendarMonth from "@/components/calendar-month";
 import TabBar from "@/components/tab-bar";
 import Wordmark from "@/components/wordmark";
-import { addNote as apiAddNote, fetchNotes, removeNote as apiRemoveNote } from "@/lib/api-client";
+import {
+  addNote as apiAddNote,
+  fetchNotes,
+  removeNote as apiRemoveNote,
+  setNoteDone as apiSetNoteDone,
+} from "@/lib/api-client";
 import {
   groupNotesByDate,
   groupPlansByDate,
@@ -141,9 +146,21 @@ export default function CalendarPage() {
   const planDays = useMemo(() => new Set(Object.keys(plansByDate)), [plansByDate]);
   const noteDays = useMemo(() => new Set(Object.keys(notesByDate)), [notesByDate]);
 
-  const handleAddNote = async (text: string) => {
-    const { note } = await apiAddNote(selected, text);
+  const handleAddNote = async (text: string, promiseId: string | null) => {
+    const { note } = await apiAddNote(selected, text, promiseId);
     setNotes((prev) => [note, ...prev]);
+  };
+
+  // 체크는 눌렀을 때 바로 반응해야 한다. 서버 왕복을 기다리면 손끝이 굼떠
+  // 보이는데, 실패하면 되돌리므로 화면과 서버가 어긋난 채로 남지는 않는다.
+  const handleToggleNote = async (id: string, done: boolean) => {
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, done } : n)));
+    try {
+      await apiSetNoteDone(id, done);
+    } catch (err) {
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, done: !done } : n)));
+      throw err;
+    }
   };
 
   const handleRemoveNote = async (id: string) => {
@@ -198,7 +215,9 @@ export default function CalendarPage() {
           plans={plansByDate[selected] ?? []}
           leaveAtByPlan={leaveAtByPlan}
           notes={notesByDate[selected] ?? []}
+          allNotes={notes}
           onAddNote={handleAddNote}
+          onToggleNote={handleToggleNote}
           onRemoveNote={handleRemoveNote}
         />
 

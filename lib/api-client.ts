@@ -250,10 +250,10 @@ export function fetchNotes() {
   return request<{ notes: CalendarNote[] }>("/api/notes", { method: "GET" });
 }
 
-export function addNote(date: string, text: string) {
+export function addNote(date: string, text: string, promiseId?: string | null) {
   return request<{ note: CalendarNote }>("/api/notes", {
     method: "POST",
-    body: JSON.stringify({ date, text }),
+    body: JSON.stringify({ date, text, promiseId: promiseId ?? null }),
   });
 }
 
@@ -261,5 +261,13 @@ export function removeNote(id: string) {
   return request<{ ok: true }>("/api/notes", {
     method: "DELETE",
     body: JSON.stringify({ id }),
+  });
+}
+
+/** 챙겼는지 표시. 약속에 딸린 체크리스트에서 쓴다. */
+export function setNoteDone(id: string, done: boolean) {
+  return request<{ ok: true }>("/api/notes", {
+    method: "PATCH",
+    body: JSON.stringify({ id, done }),
   });
 }
