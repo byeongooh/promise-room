@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Apple, Check, Clock, Loader2, Sprout, UserX } from "lucide-react";
 
 import AppleGauge from "@/components/apple-gauge";
 import { fetchHarvest, submitHarvest } from "@/lib/api-client";
 import { formatDelta } from "@/lib/brix";
-import { progressLine, resultLine, type HarvestVote } from "@/lib/harvest";
+import { harvestWindow, progressLine, resultLine, type HarvestVote } from "@/lib/harvest";
+import type { PromiseData } from "@/lib/types";
 import type { HarvestState } from "@/lib/harvest-service";
 
 // 수확 — 약속이 끝난 뒤 서로 "제시간에 왔는지"를 묻고 결과를 보여준다.
@@ -31,9 +32,12 @@ const CHOICES: { v: HarvestVote; label: string; hint: string }[] = [
 
 export default function HarvestCard({
   promiseId,
+  promise,
   onSettled,
 }: {
   promiseId: string;
+  /** 서버를 부를 필요가 있는지 먼저 가르는 데 쓴다. 아래 주석 참고. */
+  promise: PromiseData;
   /** 정산이 끝났을 때. 부모가 내 당도를 다시 읽어간다. */
   onSettled?: () => void;
 }) {
@@ -42,21 +46,38 @@ export default function HarvestCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // onSettled를 의존성에 넣으면 안 된다. 부모가 인라인 함수로 넘기면 부모가
+  // 그려질 때마다 새 함수가 되는데, onSettled가 부모의 상태를 바꾸므로
+  // **정산이 끝난 플랜에서 무한 반복이 된다** — 조회 → 정산됨 → 부모 갱신 →
+  // 새 함수 → 다시 조회. 실제로 9초에 28번 불렀다(2026-08-22에 확인).
+  // 화면은 멀쩡해 보이는 종류의 버그라 눈으로는 안 잡힌다.
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
+  const told = useRef(false);
+
+  // 아직 약속이 안 끝났으면 부를 이유가 없다. 이 판단을 서버에 맡기면
+  // 플랜을 열 때마다 쓸데없는 왕복이 하나씩 붙는다(참여자 문서까지 읽는다).
+  const worthAsking = harvestWindow(promise) === "open" || harvestWindow(promise) === "closed";
+
   const load = useCallback(async () => {
     try {
       const { harvest } = await fetchHarvest(promiseId);
       setState(harvest);
-      if (harvest.settlement) onSettled?.();
+      if (harvest.settlement && !told.current) {
+        told.current = true;
+        onSettledRef.current?.();
+      }
     } catch {
       // 수확은 부수적인 칸이라, 못 읽으면 조용히 안 그린다. 플랜 자체를
       // 못 보게 만들 이유가 없다.
       setState(null);
     }
-  }, [promiseId, onSettled]);
+  }, [promiseId]);
 
   useEffect(() => {
+    if (!worthAsking) return;
     void load();
-  }, [load]);
+  }, [load, worthAsking]);
 
   if (!state) return null;
   if (state.window === "none" || state.window === "waiting") return null;
@@ -163,7 +184,10 @@ export default function HarvestCard({
     try {
       const { harvest } = await submitHarvest(promiseId, votes);
       setState(harvest);
-      if (harvest.settlement) onSettled?.();
+      if (harvest.settlement && !told.current) {
+        told.current = true;
+        onSettledRef.current?.();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "보내지 못했습니다.");
     } finally {

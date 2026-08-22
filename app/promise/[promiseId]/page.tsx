@@ -543,7 +543,11 @@ export default function PromisePage() {
             제일 위에 두는 이유: 끝난 플랜에서는 이것 말고 할 일이 없다.
             "나가야 하는 시각" 같은 건 이미 지난 이야기다. */}
         {isParticipant && (
-          <HarvestCard promiseId={promiseId} onSettled={() => fetchPromiseData(promiseId)} />
+          <HarvestCard
+            promiseId={promiseId}
+            promise={promiseData}
+            onSettled={() => fetchPromiseData(promiseId)}
+          />
         )}
 
         {/* 나가야 하는 시각 — 이 앱이 파는 값이라 지도보다 위에 둔다.
