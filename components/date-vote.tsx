@@ -10,7 +10,14 @@ import {
   removeDateOption as apiRemove,
   voteDateOption as apiVote,
 } from "@/lib/api-client";
-import { dateVerdict, formatOption, rankOptions, tally, VOTE_LABEL } from "@/lib/date-vote";
+import {
+  confirmStance,
+  dateVerdict,
+  formatOption,
+  rankOptions,
+  tally,
+  VOTE_LABEL,
+} from "@/lib/date-vote";
 import { normalizeKakaoId } from "@/lib/promise-permissions";
 import type { DateOption, DateVote } from "@/lib/types";
 
@@ -91,6 +98,12 @@ export default function DateVoteBoard({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 되돌리기 어려운 확정은 한 번 더 묻는다. 어느 후보를 묻는 중인지.
+  const [guardId, setGuardId] = useState<string | null>(null);
+  // 시간 없는 후보에서 시간을 받는 중인지.
+  const [timeId, setTimeId] = useState<string | null>(null);
+  const [timeInput, setTimeInput] = useState("");
+
   const myKey = normalizeKakaoId(myUid);
   const ranked = rankOptions(options, participantCount);
 
@@ -124,16 +137,22 @@ export default function DateVoteBoard({
     }
   };
 
-  const confirm = async (o: DateOption) => {
+  const confirm = async (o: DateOption, timeOverride?: string) => {
     if (busy) return;
-    if (!o.time) {
-      setError("시간까지 정해야 확정할 수 있어요. 시간을 넣은 후보를 새로 올려주세요.");
+    // 시간 없는 후보는 그 자리에서 시간을 받아 확정한다. 예전에는 "시간을 넣은
+    // 후보를 새로 올려주세요"라고 돌려보냈는데, 이미 표까지 다 모인 후보를
+    // 버리고 다시 올리라는 건 시키기에 너무 큰 일이다.
+    const when = (timeOverride || o.time).trim();
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(when)) {
+      setError("시간을 정해주세요.");
       return;
     }
     setBusy(o.id);
     setError(null);
     try {
-      await apiConfirm(promiseId, { date: o.date, time: o.time });
+      await apiConfirm(promiseId, { date: o.date, time: when });
+      setGuardId(null);
+      setTimeId(null);
       onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "날짜를 정하지 못했습니다.");
@@ -220,6 +239,15 @@ export default function DateVoteBoard({
             const mine = o.votes.find((v) => myKey && normalizeKakaoId(v.uid) === myKey);
             const isMineOption = !!myKey && normalizeKakaoId(o.byUid) === myKey;
             const working = busy === o.id;
+            const asking = guardId === o.id;
+            const timing = timeId === o.id;
+            // 확정 버튼이 어떤 얼굴이어야 하는가 — 판단은 lib/date-vote.ts에서.
+            //
+            // **지금 입력 중인 시간까지 넣고 따진다.** 시간 없는 후보에 시간을
+            // 넣어주면 그때부터는 "안 돼요가 있는 후보"로 다시 판정돼야 한다.
+            // o.time만 보면 시간을 넣는 순간 재확인이 통째로 건너뛰어진다.
+            const effTime = timing || asking ? timeInput || o.time : o.time;
+            const stance = confirmStance({ ...o, time: effTime }, t, participantCount);
 
             return (
               <li
@@ -294,22 +322,123 @@ export default function DateVoteBoard({
                   ))}
                 </div>
 
+                {/* 확정 — 버튼의 무게가 후보의 상태를 따라간다.
+                    전원이 되는 날만 진한 버튼이고, 못 오는 사람이 있으면
+                    흐려지면서 "그래도"가 붙고 한 번 더 묻는다. 막지는 않는다 —
+                    "그날밖에 없다"는 사정은 방장이 알지 이 코드가 모른다. */}
                 {isOwner && (
-                  <button
-                    type="button"
-                    onClick={() => confirm(o)}
-                    disabled={busy !== null}
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-1.5
-                      rounded-[10px] bg-[var(--tk-ink)] text-[13px] font-bold
-                      text-[var(--tk-paper)] transition hover:brightness-110 disabled:opacity-60"
-                  >
-                    {working ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                  <div className="mt-2">
+                    {asking ? (
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => confirm(o, timeInput || o.time)}
+                          disabled={busy !== null}
+                          className="flex h-11 flex-1 items-center justify-center gap-1.5
+                            rounded-[10px] bg-[var(--ap-red)] text-[13px] font-bold
+                            text-[var(--tk-paper)] transition hover:brightness-110
+                            disabled:opacity-60"
+                        >
+                          {working && <Loader2 className="size-3.5 animate-spin" />}
+                          네, 이 날짜로 할게요
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGuardId(null)}
+                          className="tk-caption h-11 px-3 font-bold text-[var(--tk-faint)]
+                            transition hover:text-[var(--tk-sub)]"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : timing ? (
+                      <div className="flex gap-1.5">
+                        <input
+                          type="time"
+                          value={timeInput}
+                          onChange={(e) => setTimeInput(e.target.value)}
+                          aria-label="확정할 시간"
+                          autoFocus
+                          className="h-11 w-[104px] shrink-0 rounded-[10px] bg-[var(--tk-paper)]
+                            px-3 text-[13px] text-[var(--tk-ink)] outline-none
+                            ring-1 ring-[var(--tk-line)]"
+                        />
+                        <button
+                          type="button"
+                          // 시간을 넣고 나면 그때부터 "안 돼요가 있는 후보"로 다시
+                          // 판정된다. 여기서 곧장 확정해버리면 재확인이 통째로 샌다.
+                          onClick={() => (stance.guard ? setGuardId(o.id) : confirm(o, timeInput))}
+                          disabled={busy !== null || !timeInput}
+                          className="flex h-11 flex-1 items-center justify-center gap-1.5
+                            rounded-[10px] bg-[var(--tk-ink)] text-[13px] font-bold
+                            text-[var(--tk-paper)] transition hover:brightness-110
+                            disabled:opacity-40"
+                        >
+                          {working ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Crown className="size-3.5" />
+                          )}
+                          이 시간으로 정하기
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTimeId(null)}
+                          className="tk-caption h-11 px-2 text-[var(--tk-faint)]
+                            transition hover:text-[var(--tk-sub)]"
+                        >
+                          취소
+                        </button>
+                      </div>
                     ) : (
-                      <Crown className="size-3.5" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (stance.tone === "needsTime") {
+                            setTimeInput("");
+                            setTimeId(o.id);
+                          } else if (stance.guard) {
+                            setGuardId(o.id);
+                          } else {
+                            confirm(o);
+                          }
+                        }}
+                        disabled={busy !== null}
+                        className={`flex h-11 w-full items-center justify-center gap-1.5
+                          rounded-[10px] text-[13px] font-bold transition disabled:opacity-60 ${
+                            stance.tone === "ready"
+                              ? "bg-[var(--tk-ink)] text-[var(--tk-paper)] hover:brightness-110"
+                              : stance.tone === "soft"
+                                ? "bg-[var(--tk-disable)] text-[var(--tk-ink)] hover:brightness-95"
+                                : "bg-transparent text-[var(--tk-faint)] ring-1 ring-[var(--tk-line)] hover:text-[var(--tk-sub)]"
+                          }`}
+                      >
+                        {working ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : stance.tone === "ready" ? (
+                          <Crown className="size-3.5" />
+                        ) : null}
+                        {stance.label}
+                      </button>
                     )}
-                    이 날짜로 정하기
-                  </button>
+
+                    {stance.hint && !asking && (
+                      <p
+                        className={`tk-caption mt-1.5 text-center ${
+                          stance.tone === "override"
+                            ? "text-[var(--ap-red)]"
+                            : "text-[var(--tk-assistive)]"
+                        }`}
+                      >
+                        {stance.hint}
+                      </p>
+                    )}
+                    {asking && (
+                      <p className="tk-caption mt-1.5 text-center text-[var(--ap-red)]">
+                        {stance.hint}
+                      </p>
+                    )}
+                  </div>
                 )}
               </li>
             );
