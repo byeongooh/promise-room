@@ -48,7 +48,7 @@ Settings → Environment Variables에 등록되어 있다. 단 **Sensitive로 �
 | `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개 키 |
 | `ADMIN_PASSWORD_HASH` | `/admin/setup` 페이지에서 새로 만든다 |
 | `ODSAY_API_KEY` | lab.odsay.com → 내 애플리케이션 |
-| `KAKAO_APP_ID` | 카카오 개발자 → 앱 설정 → 요약 정보의 **앱 ID(숫자)**. REST 키와 다른 값이다. 앱 로그인에만 쓰인다 — 없으면 `/api/native/kakao`가 통째로 막힌다 |
+| `KAKAO_APP_ID` | **콘솔 주소에 그대로 있다** — `developers.kakao.com/console/app/`**`1382401`**`/...` 의 그 숫자이고, 화면에서는 앱 이름 옆 "ID"로 보인다. REST 키와 **다른 값**이니 헷갈리지 말 것. 앱 로그인에만 쓰이고, 없으면 `/api/native/kakao`가 통째로 막힌다 |
 
 `FIREBASE_PRIVATE_KEY`는 줄바꿈이 들어 있어 `"..."`로 감싸야 한다.
 
