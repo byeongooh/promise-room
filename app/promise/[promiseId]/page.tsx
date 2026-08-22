@@ -43,6 +43,7 @@ import ArrivalTime from "../../../components/arrival-time";
 import CantGo from "../../../components/cant-go";
 import ChangeWhen from "../../../components/change-when";
 import TodaySheet from "../../../components/today-sheet";
+import HarvestCard from "../../../components/harvest-card";
 import { usePromiseMembers } from "../../../hooks/use-promise-members";
 import { displayWhere, isOnline } from "../../../lib/meeting-mode";
 import {
@@ -537,6 +538,13 @@ export default function PromisePage() {
             <span className="tk-dday-sub opacity-80">{countdown.detail}</span>
           </div>
         </div>
+
+        {/* 수확 — 약속이 끝난 뒤에만 나타난다(아니면 스스로 null을 낸다).
+            제일 위에 두는 이유: 끝난 플랜에서는 이것 말고 할 일이 없다.
+            "나가야 하는 시각" 같은 건 이미 지난 이야기다. */}
+        {isParticipant && (
+          <HarvestCard promiseId={promiseId} onSettled={() => fetchPromiseData(promiseId)} />
+        )}
 
         {/* 나가야 하는 시각 — 이 앱이 파는 값이라 지도보다 위에 둔다.
             온라인 플랜은 나갈 일이 없다. */}

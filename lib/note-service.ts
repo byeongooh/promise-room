@@ -13,8 +13,9 @@ import type { CalendarNote } from "@/lib/types";
 // 안 만들고 넘어갈 수 있으면 안 만드는 게 낫다. 규칙은 지금도 클라이언트의
 // users/ 접근을 전부 막고 있고, 이 파일만 Admin SDK로 들어간다.
 //
-// 나중에 수확에서 users/{uid} 문서(brix·poisonApples)가 필요해지면 그때
-// 규칙을 한 번에 만든다. 그때까지 미룰 수 있는 일이다.
+// 수확이 붙으면서 users/{uid} 문서(brix·poisonApples)도 생겼는데, 규칙은
+// 결국 안 만들었다 — 그쪽도 같은 이유로 읽기까지 서버를 거치게 뒀다
+// (lib/harvest-service.ts의 getMyApple).
 
 const FieldValue = admin.firestore.FieldValue;
 

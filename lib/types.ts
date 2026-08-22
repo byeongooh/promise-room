@@ -73,8 +73,101 @@ export interface PromiseData {
    */
   dateOptions?: DateOption[];
 
+  /**
+   * 수확 정산 결과. 아직 정산 전이면 없다.
+   *
+   * **표(ballot)는 여기 없다.** 표는 promises/{id}/harvest/{uid}에 따로 있고
+   * 보안 규칙 기본값(전부 차단)에 막혀 클라이언트가 못 읽는다. 그래야
+   * "전원이 낼 때까지 서로 못 본다"가 성립한다. 여기 올라오는 건 정산이
+   * 끝난 뒤의 **집계**뿐이라 누가 누구를 찍었는지는 끝까지 안 보인다.
+   * 그게 익명이어야 하는 이유는 단순하다 — 누가 찍었는지 보이면 보복이 생기고,
+   * 보복이 생기면 아무도 사실대로 안 찍는다.
+   */
+  harvest?: HarvestSettlement | null;
+
+  /**
+   * 표를 낸 사람들의 uid. **내용은 없고 누가 냈는지만 있다.**
+   *
+   * 홈 목록이 "아직 평가 안 한 플랜"에 배지를 달려면 내가 냈는지를 알아야
+   * 하는데, 표 자체는 클라이언트가 못 읽는다. 그렇다고 플랜마다 서버를
+   * 부르면 목록 하나에 API 호출이 여러 번 붙는다.
+   *
+   * 누가 냈는지가 보이는 건 감수한다. 진행 상황("3명 중 2명")이 이미 수를
+   * 알려주고 있고, **무엇을 찍었는지는 여전히 안 보인다.** 그게 지켜야 할 선이다.
+   */
+  harvestVoters?: string[];
+
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+// ---------------------------------------------------------------- 수확
+//
+// 플랜이 끝난 뒤 서로 "제시간에 왔는지"를 묻는 단계. 계산은 lib/harvest.ts에
+// 전부 순수 함수로 있고, 여기는 저장되는 모양만 적는다.
+
+/** 평가 한 표. "안 옴"을 따로 둔 이유는 말없이 안 온 것이 지각보다 무겁기 때문이다. */
+export type HarvestVote = "onTime" | "late" | "noShow";
+
+/**
+ * promises/{id}/harvest/{voterUid} 한 건 — 한 사람이 낸 표 묶음.
+ *
+ * 이 하위 컬렉션은 규칙에서 열어주지 않았다(맨 아래 `match /{document=**}`가
+ * 전부 막는다). 그래서 별도 규칙 배포 없이 서버만 읽고 쓴다.
+ */
+export interface HarvestBallot {
+  voterUid: string;
+  voterName: string;
+  /** 평가 대상 uid → 표. 자기 자신은 들어가지 않는다. */
+  votes: Record<string, HarvestVote>;
+  /** ISO. 서버가 찍는다. */
+  submittedAt: string;
+}
+
+/** 한 사람의 수확 결과. 누가 찍었는지는 없고 몇 표인지만 남는다. */
+export interface HarvestResult {
+  uid: string;
+  name: string;
+  onTime: number;
+  late: number;
+  noShow: number;
+  poison: boolean;
+  /** 당도 변화량. -0.5 / 0 / +0.3 */
+  delta: number;
+}
+
+export interface HarvestSettlement {
+  /** ISO */
+  settledAt: string;
+  results: HarvestResult[];
+  /** 표를 낸 사람 수 */
+  voted: number;
+  /** 낼 수 있었던 사람 수 */
+  eligible: number;
+}
+
+// ---------------------------------------------------------------- 사용자 사과
+//
+// users/{uid} — 당도와 독사과. 메모(users/{uid}/notes)와 같은 자리이고
+// 같은 이유로 **읽기도 서버 API를 거친다**(users/ 규칙을 새로 배포하지 않으려고).
+
+export interface PoisonApple {
+  promiseId: string;
+  /** 어느 약속에서 받았는지. 플랜이 지워져도 남도록 제목을 복사해 둔다. */
+  title: string;
+  /** ISO */
+  at: string;
+}
+
+export interface UserApple {
+  /** 지금 당도. 서버가 수확 때 계산해 저장한다 — 볼 때마다 다시 계산하면
+   *  사람마다 다른 숫자를 본다. */
+  brix: number;
+  poisonApples: PoisonApple[];
+  /** 수확을 마친 플랜 수. "몇 번 지켰나"를 보여줄 때 쓴다. */
+  harvested: number;
+  /** ISO */
+  updatedAt?: string;
 }
 
 // ---------------------------------------------------------------- 날짜 맞추기

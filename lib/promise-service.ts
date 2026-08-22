@@ -2,6 +2,8 @@ import { admin, db } from "@/lib/firebaseAdmin";
 import { hashPassword, isHashed, verifyPassword } from "@/lib/password";
 import { isCanonicalUid, isSameUser, toCanonicalUid } from "@/lib/uid";
 import { badRequest, forbidden, notFound, type Caller, ApiError } from "@/lib/api-guard";
+import { harvestWindow } from "@/lib/harvest";
+import type { PromiseData } from "@/lib/types";
 
 // 약속에 대한 모든 쓰기는 이 파일을 통해서만 이뤄진다.
 // Admin SDK는 보안 규칙을 우회하므로, 권한 검사는 전적으로 여기 로직이 책임진다.
@@ -632,7 +634,18 @@ export async function setMemberAttendance(
   attendance: MemberAttendance,
   reason?: string | null
 ): Promise<void> {
-  await requireParticipant(promiseId, caller);
+  const data = await requireParticipant(promiseId, caller);
+
+  // **수확이 열린 뒤에는 못 바꾼다.**
+  //
+  // 안 막으면 구멍이 하나 생긴다 — 늦게 온 사람이 약속이 끝난 뒤에 "못 갔어요"로
+  // 바꾸면 평가 대상에서 빠져 독사과를 피한다(harvestSubjects가 cant를 제외하기
+  // 때문이다). 그 제외는 미리 말해준 사람을 보호하려는 것이지, 끝나고 말을
+  // 바꾸는 사람을 위한 게 아니다.
+  const win = harvestWindow(data as PromiseData);
+  if (win === "open" || win === "closed") {
+    throw badRequest("약속이 끝난 뒤에는 참석 여부를 바꿀 수 없어요.");
+  }
 
   await memberRef(promiseId, caller.uid).set(
     {

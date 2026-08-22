@@ -271,3 +271,33 @@ export function setNoteDone(id: string, done: boolean) {
     body: JSON.stringify({ id, done }),
   });
 }
+
+// ---------------------------------------------------------------- 수확
+
+import type { HarvestVote, UserApple } from "@/lib/types";
+import type { HarvestState } from "@/lib/harvest-service";
+
+/**
+ * 이 플랜의 수확 상태.
+ *
+ * **부르는 것만으로 정산이 일어날 수 있다.** 자동으로 도는 작업이 없어서
+ * "전원이 냈다"를 알아챌 계기가 누군가 열어보는 것뿐이다(서버 주석 참고).
+ */
+export function fetchHarvest(promiseId: string) {
+  return request<{ harvest: HarvestState }>(`/api/promises/${promiseId}/harvest`, {
+    method: "GET",
+  });
+}
+
+/** 표를 낸다. 한 번 내면 못 바꾼다. */
+export function submitHarvest(promiseId: string, votes: Record<string, HarvestVote>) {
+  return request<{ harvest: HarvestState }>(`/api/promises/${promiseId}/harvest`, {
+    method: "POST",
+    body: JSON.stringify({ votes }),
+  });
+}
+
+/** 내 당도와 독사과. users/ 는 클라이언트가 못 읽어서 서버를 거친다. */
+export function fetchMyApple() {
+  return request<{ apple: UserApple }>("/api/me/apple", { method: "GET" });
+}

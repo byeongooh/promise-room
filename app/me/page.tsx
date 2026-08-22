@@ -137,7 +137,7 @@ export default function MyApplePage() {
           <p className="tk-caption mb-3 rounded-xl bg-[var(--ap-honey-weak)] px-3.5 py-3
             leading-relaxed text-[var(--tk-sub)]">
             아직 수확한 플랜이 없어서 당도가 <b>시작값 그대로</b>예요. 플랜이 끝나고 서로
-            평가하면 그때부터 조금씩 오릅니다.
+            평가하면 그때부터 오르거나 내립니다.
           </p>
         )}
 
@@ -167,14 +167,21 @@ export default function MyApplePage() {
           <p className="tk-label mb-2 text-[var(--tk-faint)]">독사과</p>
           {stats.poison.length === 0 ? (
             <p className="tk-body text-[var(--tk-sub)]">
-              아직 없어요. 늦으면 한 알 달리는데, <b>당도를 깎지는 않고</b> 오르는 속도만
-              절반이 됩니다. 90일이 지나면 저절로 사라져요.
+              아직 없어요. 수확에서 <b>두 사람 이상</b>이 늦었다고 하면 한 알 달리고,
+              <b> 당도가 0.5 깎입니다</b>. 깎인 당도는 저절로 돌아오지 않지만 다음
+              플랜을 지키면 다시 오릅니다. 표시는 90일 뒤에 사라져요.
             </p>
           ) : (
             <ul className="space-y-2">
               {stats.poison.map((p) => (
-                <li key={p.promiseId} className="tk-body text-[var(--tk-sub)]">
-                  {p.expiresAt}에 사라짐
+                <li
+                  key={`${p.promiseId}-${p.expiresAt}`}
+                  className="tk-body flex items-baseline justify-between gap-2 text-[var(--tk-sub)]"
+                >
+                  <span className="min-w-0 truncate">{p.title}</span>
+                  <span className="tk-caption shrink-0 text-[var(--tk-faint)]">
+                    {fadeLabel(p.expiresAt)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -206,4 +213,10 @@ export default function MyApplePage() {
       <TabBar />
     </div>
   );
+}
+
+/** "62일 뒤 사라짐" — ISO를 그대로 찍으면 사람이 읽을 수 없다. */
+function fadeLabel(expiresAt: string): string {
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
+  return days <= 0 ? "곧 사라짐" : `${days}일 뒤 사라짐`;
 }

@@ -23,6 +23,10 @@ import AppleSummary from "@/components/apple-summary";
 import TabBar from "@/components/tab-bar";
 import Wordmark from "@/components/wordmark";
 import ViewSwitch from "@/components/view-switch";
+import AppleGauge from "@/components/apple-gauge";
+import { needsMyHarvest } from "@/lib/harvest";
+import { toCanonicalUid } from "@/lib/uid";
+import { ChevronRight } from "lucide-react";
 import SharePromise from "@/components/share-promise";
 import {
   displayLocation,
@@ -154,6 +158,16 @@ export default function HomePage() {
       ),
     };
   }, [promises, currentUserId]);
+
+  // 평가를 기다리는 플랜 — 끝났고, 둘 이상이고, 내가 아직 표를 안 낸 것.
+  //
+  // 이게 없으면 수확 기능을 아무도 못 찾는다. 끝난 플랜은 목록 맨 아래
+  // "지난 플랜"에 있어서, 열어보기 전에는 평가할 게 있는 줄 모른다.
+  // 서버를 부르지 않고 이미 구독 중인 약속 문서만으로 판단한다(needsMyHarvest).
+  const toHarvest = useMemo(
+    () => past.filter((p) => needsMyHarvest(p, toCanonicalUid(currentUserId) ?? undefined)),
+    [past, currentUserId]
+  );
 
   const [favoritingId, setFavoritingId] = useState<string | null>(null);
 
@@ -292,6 +306,26 @@ export default function HomePage() {
 
         {/* 목록 / 달력 — 같은 플랜을 다르게 보는 것이라 탭바가 아니라 여기다. */}
         <ViewSwitch active="list" />
+
+        {toHarvest.length > 0 && (
+          <button
+            type="button"
+            onClick={() => openDetail(toHarvest[0].id!)}
+            className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-[var(--ap-red-weak)]
+              px-4 py-3.5 text-left transition hover:brightness-[0.98]"
+          >
+            <AppleGauge brix={13} size={38} className="shrink-0" label="" />
+            <span className="min-w-0 flex-1">
+              <span className="tk-meta block font-bold text-[var(--ap-red)]">
+                수확할 플랜이 {toHarvest.length}개 있어요
+              </span>
+              <span className="tk-caption block truncate text-[var(--tk-sub)]">
+                {toHarvest[0].title} — 다들 제때 왔나요?
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-[var(--ap-red)]" />
+          </button>
+        )}
 
         {/* 내 사과 — 목록보다 위에 둔다.
             플랜이 0개인 주에도 앱을 열 이유가 되는 것이 이 카드의 존재 이유라,

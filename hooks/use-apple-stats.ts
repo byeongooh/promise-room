@@ -4,39 +4,63 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-import { BRIX_START } from "@/lib/brix";
+import { BRIX_START, POISON_DAYS } from "@/lib/brix";
+import { fetchMyApple } from "@/lib/api-client";
 import { normalizeKakaoId } from "@/lib/promise-permissions";
 import { getPromiseDate } from "@/lib/promise-time";
-import type { PromiseData } from "@/lib/types";
+import type { PromiseData, UserApple } from "@/lib/types";
 
 // 내 사과에 필요한 숫자들.
 //
-// 당도와 독사과는 아직 **수확 기능이 없어서 저장되는 곳이 없다.** 그래서
-// 지금은 시작값을 그대로 쓰고, 화면에서도 그렇다고 말한다. 없는 값을
-// 그럴듯하게 지어내지 않는다(핸드오프 §9).
+// 두 곳에서 읽는다. **당도와 독사과는 서버에서**(users/{uid}는 보안 규칙이
+// 클라이언트에 안 열어준다), **함께한 플랜·사람 수는 Firestore에서 직접**.
+// 뒤엣것은 이미 구독 중인 약속 목록으로 세는 것이라 따로 부를 이유가 없다.
 //
-// 반면 함께한 플랜·사람 수는 이미 있는 약속 문서에서 진짜로 셀 수 있다.
+// 당도는 수확이 끝날 때만 바뀌므로 실시간 구독이 아니라 한 번 읽고 만다.
+// 수확을 한 번도 안 한 사람은 문서 자체가 없고, 그때는 시작값이 온다 —
+// 그건 "아직 기록이 없다"는 뜻이라 화면에서 그렇게 말해준다.
 
 export interface AppleStats {
-  /** 평판 점수. 수확이 붙기 전까지는 모두 시작값. */
+  /** 평판 점수. 수확이 끝날 때마다 서버가 다시 계산해 저장한 값이다. */
   brix: number;
-  /** 수확 기능이 아직 없어 당도가 시작값에 머물러 있는지 */
+  /** 아직 수확을 한 번도 안 해서 시작값 그대로인지 */
   brixIsPlaceholder: boolean;
+  /** 수확을 마친 플랜 수 */
+  harvested: number;
   /** 지금까지 참여한 플랜 수 */
   planCount: number;
   /** 그중 이미 지난 것 — 실제로 만난 횟수 */
   pastCount: number;
   /** 함께한 사람 수 (나 제외, 중복 없이) */
   partnerCount: number;
-  /** 독사과. 수확이 붙기 전까지 항상 빈 배열 */
-  poison: { promiseId: string; expiresAt: string }[];
+  /** 최근 독사과. POISON_DAYS(90일)가 안 지난 것만 */
+  poison: { promiseId: string; title: string; expiresAt: string }[];
   loading: boolean;
   error: string | null;
 }
 
 export function useAppleStats(uid: string | undefined, ready: boolean): AppleStats {
   const [promises, setPromises] = useState<PromiseData[] | null>(null);
+  const [apple, setApple] = useState<UserApple | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 당도·독사과 — 서버를 거쳐 읽는다.
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { apple } = await fetchMyApple();
+        if (!cancelled) setApple(apple);
+      } catch {
+        // 못 읽으면 시작값으로 그린다. 여기서 화면을 막을 이유는 없다.
+        if (!cancelled) setApple({ brix: BRIX_START, poisonApples: [], harvested: 0 });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
 
   useEffect(() => {
     if (!ready || !uid) return;
@@ -86,15 +110,26 @@ export function useAppleStats(uid: string | undefined, ready: boolean): AppleSta
       if (when && when.getTime() < now.getTime()) pastCount++;
     }
 
+    // 90일이 지난 독사과는 "최근"이 아니다. 당도에서 깎인 것은 그대로 남지만
+    // (poisonPenalty 주석 참고), 화면의 경고는 사라진다.
+    const recent = (apple?.poisonApples ?? [])
+      .map((p) => ({
+        promiseId: p.promiseId,
+        title: p.title,
+        expiresAt: new Date(new Date(p.at).getTime() + POISON_DAYS * 86_400_000).toISOString(),
+      }))
+      .filter((p) => new Date(p.expiresAt).getTime() > now.getTime());
+
     return {
-      brix: BRIX_START,
-      brixIsPlaceholder: true,
+      brix: apple?.brix ?? BRIX_START,
+      brixIsPlaceholder: (apple?.harvested ?? 0) === 0,
+      harvested: apple?.harvested ?? 0,
       planCount: list.length,
       pastCount,
       partnerCount: partners.size,
-      poison: [],
-      loading: promises === null && !error,
+      poison: recent,
+      loading: (promises === null || apple === null) && !error,
       error,
     };
-  }, [promises, uid, error]);
+  }, [promises, apple, uid, error]);
 }
