@@ -22,6 +22,7 @@ import PromiseTicket from "@/components/promise-ticket";
 import AppleSummary from "@/components/apple-summary";
 import TabBar from "@/components/tab-bar";
 import Wordmark from "@/components/wordmark";
+import ViewSwitch from "@/components/view-switch";
 import SharePromise from "@/components/share-promise";
 import {
   displayLocation,
@@ -288,6 +289,9 @@ export default function HomePage() {
             {kakaoName?.trim().charAt(0) || "나"}
           </Link>
         </header>
+
+        {/* 목록 / 달력 — 같은 플랜을 다르게 보는 것이라 탭바가 아니라 여기다. */}
+        <ViewSwitch active="list" />
 
         {/* 내 사과 — 목록보다 위에 둔다.
             플랜이 0개인 주에도 앱을 열 이유가 되는 것이 이 카드의 존재 이유라,

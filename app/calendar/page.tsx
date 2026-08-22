@@ -13,6 +13,7 @@ import CalendarDay from "@/components/calendar-day";
 import CalendarMonth from "@/components/calendar-month";
 import TabBar from "@/components/tab-bar";
 import Wordmark from "@/components/wordmark";
+import ViewSwitch from "@/components/view-switch";
 import {
   addNote as apiAddNote,
   fetchNotes,
@@ -184,13 +185,24 @@ export default function CalendarPage() {
   return (
     <div className="min-h-screen bg-[var(--tk-ground)]">
       <div className="container mx-auto max-w-lg px-4 pb-24 pt-5">
-        <div className="mb-4 flex items-center justify-between">
-          <Wordmark size="md" />
-          <span className="tk-caption flex items-center gap-1.5 text-[var(--tk-faint)]">
-            <CalendarDays className="size-3.5" />
-            달력
-          </span>
-        </div>
+        {/* 홈(목록)과 같은 머리 모양이어야 한다. 전환했을 때 위쪽이 흔들리면
+            다른 화면으로 넘어온 것처럼 보인다. */}
+        <header className="mb-4 flex items-center justify-between">
+          <h1>
+            <Wordmark size="md" />
+          </h1>
+          <Link
+            href="/me"
+            aria-label="내 사과"
+            className="grid size-9 place-items-center rounded-full bg-[var(--tk-ground)]
+              text-[13px] font-bold text-[var(--tk-ink)] ring-1 ring-[var(--tk-line)]
+              transition hover:brightness-95"
+          >
+            {session?.user?.name?.trim().charAt(0) || "나"}
+          </Link>
+        </header>
+
+        <ViewSwitch active="calendar" />
 
         {loadError && (
           <p className="tk-caption mb-3 rounded-xl bg-[var(--ap-red-weak)] px-3 py-2.5 text-[var(--ap-red)]">
