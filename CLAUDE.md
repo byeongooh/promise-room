@@ -354,25 +354,42 @@ Claude가 못 하는 것들이다.
 위치추적은 새 데이터 흐름·권한·배터리·심사가 한꺼번에 붙고, 게다가 알림 위에
 얹힌다("○○님이 도착했어요").
 
-### 앱은 `mobile/` 안에 있다 — SDK는 **56으로 고정**
+### 앱은 `mobile/` 안에 있다 — SDK는 **54로 고정**
 
 `mobile/` · Expo · TypeScript. 같은 저장소에 둔 이유는 이 저장소의 문서와
 커밋 로그가 사실상 설계 기록이라, 앱을 따로 파면 그 기록이 두 갈래로 갈라지기
 때문이다. Vercel은 루트 package.json만 보므로 웹 배포에는 영향이 없다.
 
-**SDK 57로 올리지 말 것.** 처음에 57로 만들었더니 아이폰 Expo Go가
-"Project is incompatible"로 거절했다. 원인은 프로젝트가 아니라 폰이다 —
-**App Store는 기기가 감당 못 하는 최신 버전 대신 옛 버전을 조용히 내려준다.**
-그래서 "방금 설치했는데도 구버전"이 되고, 업데이트 버튼도 안 보인다.
-Expo 서버에 물어보면 SDK 57은 iOS Expo Go 57.0.9가 필요한데 그게 안 깔린다.
+**SDK를 올리지 말 것. 54가 최신이라서가 아니라 Expo Go가 54까지만 받아서다.**
 
-`npx expo-doctor`가 SDK 56의 Hermes 메모리 회귀를 하나 잡아낸다(22개 중 21개
-통과). 처방이 "SDK 57로 올려라"인데 그게 바로 못 하는 일이라 **받아들이고 간다.**
-개발 중에 문제가 되는 종류가 아니고, 개발 빌드로 넘어가면 Expo Go의 제약
-자체가 사라져서 그때 57로 올리면 된다.
+```
+App Store의 Expo Go = 54.0.2 (2025-09-23 출시, 그 뒤로 안 올라감)
+Expo Go는 SDK를 딱 하나만 받는다 — 범위가 아니라 일치다
+  apps/expo-go/.../ExperienceActivity.kt:  sdkVersion == Constants.SDK_VERSION
+```
 
-즉 이 56은 기술적 선택이 아니라 **폰에 맞춘 값**이다. 폰이 바뀌거나 개발
-빌드로 가기 전까지는 그대로 둔다.
+그래서 `create-expo-app`이 기본으로 주는 최신 SDK(57)로 만들면 폰에서
+"Project is incompatible with this version of Expo Go"로 거절당한다.
+
+**여기서 두 번 헛짚었다. 같은 함정에 다시 빠지지 말 것.**
+1. "폰의 Expo Go를 업데이트하면 된다" → 업데이트할 게 없었다.
+2. "폰이 오래돼서 App Store가 옛 버전을 내려준다" → iOS 26.5.2, 최신 폰이었다.
+   막고 있던 건 폰이 아니라 **App Store에 올라온 Expo Go 자체**였다.
+
+두 번 다 추측이었고, 답은 한 번의 조회로 나왔다. **폰 탓을 하기 전에
+App Store가 실제로 무엇을 주는지부터 볼 것:**
+
+```bash
+curl -s "https://itunes.apple.com/lookup?bundleId=host.exp.Exponent&country=kr" | grep -o '"version":"[^"]*"'
+```
+
+Expo 쪽 대응표(어느 SDK에 어느 Expo Go가 필요한지)는 여기 있다:
+`https://api.expo.dev/v2/versions/latest` → `sdkVersions[*].iosClientVersion`.
+
+**언제 이 제약이 사라지나** — 개발 빌드(development build)로 넘어가면
+Expo Go를 안 쓰므로 SDK를 자유롭게 올릴 수 있다. 다만 아이폰 + 윈도우
+조합에서는 EAS 클라우드 빌드와 유료 Apple 계정이 필요해서, 지금 단계에서
+치를 값은 아니다. **로그인 한 줄이 뚫리는 것이 먼저다.**
 
 ### 앱 로그인 — 웹과 길이 다르다
 
